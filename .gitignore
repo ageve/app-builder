@@ -1,0 +1,13 @@
+envs
+projects
+builds
+build
+
+.env
+node_modules
+yarn-error.log
+dist
+/local
+log
+
+config.ts
