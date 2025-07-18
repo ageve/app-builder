@@ -1,9 +1,10 @@
-import { rimrafSync } from "rimraf";
-import { resolve } from "path";
-import { Task } from "../types";
-import winston from "winston";
 import dayjs from "dayjs";
+import duration from "dayjs/plugin/duration";
 import { parse } from "dotenv";
+import { rimrafSync } from "rimraf";
+import winston from "winston";
+import { Task } from "../types";
+dayjs.extend(duration);
 export function setTaskName(name: string, prepareWorkspace: Task) {
   Object.defineProperties(prepareWorkspace, {
     name: {
@@ -49,16 +50,5 @@ export function jsonToDotEnv(data: Record<string, string>) {
 }
 
 export const formatRunningTime = (ms: number) => {
-  if (ms < 0) ms = -ms;
-  const time = {
-    // day: Math.floor(ms / 86400000),
-    // hour: Math.floor(ms / 3600000) % 24,
-    m: Math.floor(ms / 60000) % 60,
-    s: Math.floor(ms / 1000) % 60,
-    // millisecond: Math.floor(ms) % 1000,
-  };
-  return Object.entries(time)
-    .filter((val) => val[1] !== 0)
-    .map(([key, val]) => `${val}${key}`)
-    .join(" ");
+  return dayjs.duration(ms).format("mm:ss SSS");
 };

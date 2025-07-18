@@ -14,11 +14,11 @@ import prepareDependencies from "../../v2/tasks/prepareDependencies";
 import createPrepareEnv from "../../v2/tasks/prepareEnv";
 import prepareVar from "../../v2/tasks/prepareVar";
 import renameLog from "../../v2/tasks/renameLog";
-import tasksParallel from "../../v2/tasks/tasksParallel";
 import createUploadFir from "../../v2/tasks/uploadFir";
 import createUploadPgyer from "../../v2/tasks/uploadPgyer";
 import { Task } from "../../v2/types";
-import config from "../../config";
+import tasksParallel from "../../v2/utils/tasksParallel";
+import config from "./config.example";
 const pipelineGroup = [
   "production",
   "alpha",
@@ -41,7 +41,7 @@ const productionEnvs = envs.filter((it) => /.prod/.test(it.name));
 
 const alphaEnvs = envs.filter((it) => it.name.includes(".alpha"));
 
-export default async function interactive() {
+export async function buildHugoGameApp() {
   const result = await enquirer.prompt({
     type: "select",
     name: "pipelineGroup",
@@ -68,6 +68,7 @@ function buildDebugPipelineGroup() {
   const workspace = resolve(cwd(), `../hugo-game-app`);
   rimraf(resolve(cwd(), "./build/hugo-game-app"));
   pipelineRun([
+    // @ts-ignore
     new Pipeline({ gitUri: config!.gitUir, branch: "debug", workspace }, [
       prepareVar,
       createPrepareEnv(resolve(workspace, "./.env")),
@@ -86,12 +87,17 @@ function buildAlphaOrProdPipelineGroup({
   type: Pick<PipelineGroup, "alpha" & "production">;
   customEnvs?: { name: string; path: string }[];
 }) {
-  const envs = customEnvs ? customEnvs : type === "production" ? productionEnvs : alphaEnvs;
+  const envs = customEnvs
+    ? customEnvs
+    : type === "production"
+    ? productionEnvs
+    : alphaEnvs;
   const branch = type === "production" ? "master" : "alpha";
   rimraf(resolve(cwd(), "./build/hugo-game-app"));
   pipelineRun(
     envs.map((it, index) => {
-      const tasks: Task[] = index === 0 ? [prepareCode, prepareDependencies] : [];
+      const tasks: Task[] =
+        index === 0 ? [prepareCode, prepareDependencies] : [];
       const clean = index === 0;
       // 生产环境同时上传 fir
       const uploadTasks =
@@ -99,6 +105,7 @@ function buildAlphaOrProdPipelineGroup({
           ? [uploadQiniu, createUploadFir(config!.fir.apiKey, "android")]
           : [uploadQiniu];
 
+      // @ts-ignore
       return new Pipeline({ gitUri: config!.gitUir, branch }, [
         ...tasks,
         prepareVar,
@@ -108,12 +115,12 @@ function buildAlphaOrProdPipelineGroup({
         updatePackage,
         createNotifyBusinessWechat(config!.notifyBusinessWechat.webhook),
       ]);
-    }),
+    })
   );
 }
 
 async function buildCustomPipelineGroup(
-  type: Pick<PipelineGroup, "custom-alpha" & "custom-production">,
+  type: Pick<PipelineGroup, "custom-alpha" & "custom-production">
 ) {
   const envs = type === "custom-production" ? productionEnvs : alphaEnvs;
   const en2 = new Enquirer<{ customPipeline: string[] }>();
@@ -125,7 +132,9 @@ async function buildCustomPipelineGroup(
   });
   console.log(result.customPipeline);
   if (result.customPipeline && result.customPipeline.length > 0) {
-    const customEnvs = envs.filter((it) => result.customPipeline.includes(it.name));
+    const customEnvs = envs.filter((it) =>
+      result.customPipeline.includes(it.name)
+    );
     console.log(envs, customEnvs);
 
     buildAlphaOrProdPipelineGroup({

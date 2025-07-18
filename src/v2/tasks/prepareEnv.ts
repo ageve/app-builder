@@ -1,8 +1,7 @@
-import { $ } from "zx";
-import { dotEnvToJson, jsonToDotEnv, setTaskName } from "../utils/common";
 import dayjs from "dayjs";
 import { readFileSync, writeFileSync } from "fs-extra";
 import { resolve } from "path";
+import { dotEnvToJson, jsonToDotEnv, setTaskName } from "../utils/common";
 async function prepareEnv(context: any, envFile: string) {
   try {
     console.warn(context.workspace);
@@ -13,8 +12,7 @@ async function prepareEnv(context: any, envFile: string) {
     );
     // 读取预设 envFile 内容
     const envContent = dotEnvToJson(readFileSync(envFile, "utf-8"));
-    // TODO: 校验 .env
-    // TODO: valid versionName
+
     const versionName =
       envContent.ENV_TYPE === "production"
         ? packageJSON.version

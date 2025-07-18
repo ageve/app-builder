@@ -1,3 +1,5 @@
+import { Config } from "../utils";
+
 export type Task = (context: any) => Promise<boolean | unknown>;
 export type TaskMeta = { name: string; task: Task };
 export type Hooks = {
@@ -6,7 +8,9 @@ export type Hooks = {
 export type Options = {
   branch: string;
   gitUri: string;
+  config: Config;
   workspace?: string;
+  clean?: boolean;
 };
 export type Context = Options & Record<string, unknown>;
 

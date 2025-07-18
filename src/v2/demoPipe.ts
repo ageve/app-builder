@@ -1,18 +1,8 @@
-import Pipeline from "./pipeline";
-import { pipelineRun } from "./pipelineRun";
-import prepareCode from "./tasks/prepareCode";
-import prepareDependencies from "./tasks/prepareDependencies";
-import createPrepareEnv from "./tasks/prepareEnv";
-import buildAndroid from "./tasks/buildAndroid";
-import uploadQiniu from "../uploadQiniu";
-import tasksParallel from "./tasks/tasksParallel";
-import createNotifyBusinessWechat from "./tasks/notifyBusinessWechat";
-import createUploadFir from "./tasks/uploadFir";
-import updatePackage from "./custom/updatePackage";
-import createUploadPgyer from "./tasks/uploadPgyer";
-import { uploadPgyer } from "./utils/pgyer";
 import { resolve } from "path";
 import { cwd } from "process";
+import Pipeline from "./pipeline";
+import { pipelineRun } from "./pipelineRun";
+import createPrepareEnv from "./tasks/prepareEnv";
 
 const uiLibRelease = new Pipeline(
   {

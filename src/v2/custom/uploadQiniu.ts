@@ -1,8 +1,8 @@
 import fetch from "node-fetch";
 import path from "path";
 import qiniu from "qiniu";
+import builderConfig from "../config.global";
 import { setTaskName } from "../utils/common";
-import builderConfig from "../../config";
 const config = new qiniu.conf.Config();
 
 export default async function uploadQiniu(context: any) {
@@ -11,7 +11,10 @@ export default async function uploadQiniu(context: any) {
     const { productFile } = buildAndroid;
     const { ENV_TYPE } = prepareEnv;
     // get uploadToken
-    const url = ENV_TYPE === "alpha" ? builderConfig.uploadApi.alpha : builderConfig.uploadApi.prod;
+    const url =
+      ENV_TYPE === "alpha"
+        ? builderConfig.uploadApi.alpha
+        : builderConfig.uploadApi.prod;
     const response = await fetch(url, {
       method: "POST",
       headers: {
@@ -57,7 +60,7 @@ export default async function uploadQiniu(context: any) {
             console.log(respBody);
             resolve(false);
           }
-        },
+        }
       );
     });
 

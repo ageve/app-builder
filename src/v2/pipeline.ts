@@ -1,20 +1,29 @@
+import { log } from "@clack/prompts";
 import chalk from "chalk";
 import { ensureDirSync } from "fs-extra";
 import { nanoid } from "nanoid";
 import { basename, resolve } from "node:path";
 import { cwd } from "node:process";
+import { rimraf } from "rimraf";
 import { Context, Options, Task } from "./types";
 import { createLogger, formatRunningTime } from "./utils/common";
-
+type HookFn<T extends unknown[]> = (...args: T) => Promise<void>;
 export default class Pipeline {
   context: Context;
   tasks: Task[] = [];
+  beforeTask?: HookFn<unknown[]>;
+  afterTask?: HookFn<unknown[]>;
+  beforeRun?: HookFn<unknown[]>;
+  afterRun?: HookFn<unknown[]>;
 
   constructor(options: Options, tasks: Task[]) {
     const projectName = basename(options.gitUri).replace(".git", "");
     const workspace =
       options?.workspace ?? resolve(cwd(), `../.orden/projects/${projectName}`);
     const output = resolve(cwd(), `./build/${projectName}`);
+    if (options.clean) {
+      rimraf(output);
+    }
     ensureDirSync(workspace);
     ensureDirSync(output);
     const logId = nanoid();
@@ -33,13 +42,33 @@ export default class Pipeline {
       filename: logFile,
     });
     this.tasks = tasks;
-    // this.tasks.unshift(prepareVar);
+  }
+
+  registerBeforeTask(fn: HookFn<[Context]>) {
+    // @ts-ignore
+    this.beforeTask = fn;
+  }
+
+  registerAfterTask(fn: HookFn<[Context]>) {
+    // @ts-ignore
+    this.afterTask = fn;
+  }
+
+  registerBeforeRun(fn: HookFn<[Context]>) {
+    // @ts-ignore
+    this.beforeRun = fn;
+  }
+  registerAfterRun(fn: HookFn<[Context]>) {
+    // @ts-ignore
+    this.afterRun = fn;
   }
 
   async run() {
     // default task
     const startTime = Date.now();
-
+    const context = { ...this.context };
+    delete context["logger"];
+    this.beforeRun?.(context);
     let taskLength = this.tasks.length;
     async function next(
       index: number,
@@ -52,7 +81,7 @@ export default class Pipeline {
           console.log(chalk.cyan(`[${task.name}]`));
           const result = await task(context);
           if (result && task.name) {
-            // TODO: task 必须返回 object
+            // task返回 object, 则保存到 context ,供后续步骤调用
             if (typeof result === "object") {
               context[task.name] = result;
             }
@@ -61,9 +90,9 @@ export default class Pipeline {
           return true;
         } catch (error) {
           const endTime = Date.now();
-          console.log(
+          log.info(
             chalk.red(
-              `[pipeId:${context.pipeId}]  Some thing wrong,and took ` +
+              `[pipeId:${context.pipeId}] build failed, and took ` +
                 formatRunningTime(endTime - startTime)
             )
           );
@@ -71,9 +100,9 @@ export default class Pipeline {
         }
       } else {
         const endTime = Date.now();
-        console.log(
+        log.info(
           chalk.cyan(
-            `[pipeId:${context.pipeId}] Success, and took ` +
+            `[pipeId:${context.pipeId}] build success, and took ` +
               formatRunningTime(endTime - startTime)
           )
         );

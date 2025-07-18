@@ -2,5 +2,18 @@
   "editor.codeActionsOnSave": {
     "source.organizeImports": "explicit"
   },
-  "cSpell.words": ["gradlew", "orden", "Pgyer", "Qiniu"]
+  "cSpell.words": [
+    "gradlew",
+    "orden",
+    "Pgyer",
+    "Qiniu"
+  ],
+  "files.exclude": {
+    "**/.git": true,
+    "**/.svn": true,
+    "**/.hg": true,
+    "**/.DS_Store": true,
+    "**/Thumbs.db": true
+  },
+  "hide-files.files": []
 }

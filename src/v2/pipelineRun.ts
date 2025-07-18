@@ -3,9 +3,7 @@ import Pipeline from "./pipeline";
 // 串行执行
 export async function pipelineRun(pipelines: Pipeline[]) {
   for (const pipeline of pipelines) {
-    try {
-      await pipeline.run();
-    } catch (error) {}
+    await pipeline.run();
   }
 }
 

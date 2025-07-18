@@ -1,5 +1,5 @@
 import open from "open";
-import builderConfig from "../../config";
+import builderConfig from "../config.global";
 
 /**
  * 打开后台网页执行自动更新包信息
@@ -10,11 +10,14 @@ export default async function updatePackage(context: any) {
     // console.log(context)
     const { uploadQiniu, prepareEnv, variables, logger } = context;
     const { downloadUrl } = uploadQiniu;
-    const { versionName, versionCode, APPLICATION_ID, ENV_TYPE, CONTEXT_ID } = prepareEnv;
+    const { versionName, versionCode, APPLICATION_ID, ENV_TYPE, CONTEXT_ID } =
+      prepareEnv;
     const { commitId } = variables;
 
     const href =
-      ENV_TYPE === "alpha" ? builderConfig.updateUrl.alpha : builderConfig.updateUrl.prod;
+      ENV_TYPE === "alpha"
+        ? builderConfig.updateUrl.alpha
+        : builderConfig.updateUrl.prod;
     const common = {
       commitId: `${commitId};${versionName}`,
       packageName: APPLICATION_ID,
@@ -36,7 +39,7 @@ export default async function updatePackage(context: any) {
       JSON.stringify({
         type: "update",
         params: data,
-      }),
+      })
     )}`;
     logger.info(href);
     logger.info(searchParams);
