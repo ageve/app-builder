@@ -1,5 +1,5 @@
 const config = {
-  // gitUir: "xxx/hugo/hugo-game-app.git",
+  gitUri: "xxx.git",
   pgyer: {
     apiKey: "xxx",
     buildType: "apk" as const,
@@ -10,6 +10,7 @@ const config = {
   fir: { apiKey: "xxx" },
   uploadApi: { alpha: "", prod: "" },
   updateUrl: { alpha: "", prod: "" },
+  pkgManager: "bun", // yarn , npm ,pnpm
 };
 
 export default config;

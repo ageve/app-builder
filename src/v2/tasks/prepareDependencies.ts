@@ -1,6 +1,5 @@
-import { $, cd } from "zx";
-import { setTaskName } from "../utils/common";
 import { existsSync } from "node:fs";
+import { $, cd } from "zx";
 
 export default async function prepareDependencies(context: any) {
   const { workspace } = context;
@@ -8,11 +7,12 @@ export default async function prepareDependencies(context: any) {
     cd(workspace);
     await $`pwd`;
     let packageManager = "npm";
-    if (existsSync("yarn.lock")) {
-      packageManager = "yarn";
-    }
-    if (existsSync("pnpm-lock.yaml")) {
+    if (existsSync("bun.lock")) {
+      packageManager = "bun";
+    } else if (existsSync("pnpm-lock.yaml")) {
       packageManager = "pnpm";
+    } else if (existsSync("yarn.lock")) {
+      packageManager = "yarn";
     }
     await $`${packageManager} install`;
     return true;
@@ -21,5 +21,3 @@ export default async function prepareDependencies(context: any) {
   }
   return false;
 }
-
-setTaskName("prepareDependencies", prepareDependencies);
