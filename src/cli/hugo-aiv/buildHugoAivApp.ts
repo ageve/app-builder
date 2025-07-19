@@ -1,5 +1,6 @@
 import { cancel, isCancel, log, multiselect } from "@clack/prompts";
-import path from "node:path";
+import path, { resolve } from "node:path";
+import { cwd } from "node:process";
 import {
   cartesian3,
   configSchema,
@@ -8,6 +9,12 @@ import {
 } from "../../utils";
 import Pipeline from "../../v2/pipeline";
 import { pipelineRun } from "../../v2/pipelineRun";
+import createBuildAndroid from "../../v2/tasks/buildAndroid";
+import prepareCode from "../../v2/tasks/prepareCode";
+import prepareDependencies from "../../v2/tasks/prepareDependencies";
+import createPrepareEnv from "../../v2/tasks/prepareEnv";
+import prepareVar from "../../v2/tasks/prepareVar";
+import { Task } from "../../v2/types";
 
 const androidPackages = ["qin", "hookAi"];
 const applications = ["android", "iOS"];
@@ -43,6 +50,7 @@ export async function buildHugoAivApp() {
       cancel("Operation cancelled.");
       process.exit(0);
     }
+
     await buildPipeline({ config: projectConfig!, pipelines });
   } catch (error) {
     if (error instanceof Error) {
@@ -63,10 +71,23 @@ async function buildPipeline({
     pipelines.map((item) => {
       const [packageAlias, system, env] = item.split("-");
       const branch = env === "alpha" ? "alpha" : "main";
+      const envPath = resolve(
+        cwd(),
+        "./envs/hugo-aiv-app",
+        `.env.${packageAlias}.${env}`
+      );
+      const tasks: Task[] = [
+        prepareCode,
+        prepareDependencies,
+        prepareVar,
+        createPrepareEnv(envPath),
+        createBuildAndroid({ clean: true }),
+      ];
+
       // 本地使用额外处理: 请确认本地项目路径和构建脚本的路径
       const pipeline = new Pipeline(
         { config, branch, gitUri: config.gitUri, clean: true },
-        []
+        tasks
       );
       pipeline.registerBeforeRun(async (context) => {
         await log.info("context " + JSON.stringify(context, null, 2));
