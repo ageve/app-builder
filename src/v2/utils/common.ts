@@ -52,3 +52,16 @@ export function jsonToDotEnv(data: Record<string, string>) {
 export const formatRunningTime = (ms: number) => {
   return dayjs.duration(ms).format("mm:ss SSS");
 };
+
+export function convertExpoPublicKey(key: string): string {
+  const prefix = "EXPO_PUBLIC_";
+  let stripped = key.startsWith(prefix) ? key.slice(prefix.length) : key;
+
+  // 转成小写单驼峰
+  const parts = stripped.toLowerCase().split("_");
+  return parts
+    .map((part, index) =>
+      index === 0 ? part : part.charAt(0).toUpperCase() + part.slice(1)
+    )
+    .join("");
+}

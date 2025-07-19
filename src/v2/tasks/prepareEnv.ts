@@ -2,7 +2,12 @@ import { log } from "@clack/prompts";
 import dayjs from "dayjs";
 import { readFileSync, writeFileSync } from "fs-extra";
 import { resolve } from "path";
-import { dotEnvToJson, jsonToDotEnv, setTaskName } from "../utils/common";
+import {
+  convertExpoPublicKey,
+  dotEnvToJson,
+  jsonToDotEnv,
+  setTaskName,
+} from "../utils/common";
 async function prepareEnv(context: any, envFile: string) {
   try {
     log.info(context.workspace);
@@ -27,9 +32,16 @@ async function prepareEnv(context: any, envFile: string) {
     // build 时环境变量文件
     const envFileCache = resolve(workspace, "./.env");
     writeFileSync(envFileCache, newEnvContent, "utf-8");
+    const normalizeEnvVariables: Record<string, unknown> = {};
+    Object.keys(envContent).forEach((key) => {
+      const value = envContent[key];
+      const newKey = convertExpoPublicKey(key);
+      normalizeEnvVariables[newKey] = value;
+    });
     const result = {
       envContent,
       envFileCache,
+      ...normalizeEnvVariables,
     };
     logger.info(result);
     return result;

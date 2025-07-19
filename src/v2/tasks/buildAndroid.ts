@@ -6,12 +6,7 @@ async function buildAndroid(context: any, options?: { clean?: boolean }) {
   try {
     const { workspace, output, prepareEnv, variables, logger } = context;
     const { commitId } = variables;
-    const {
-      versionName,
-      PACKAGE_ID,
-      envFileCache,
-      version: versionCode,
-    } = prepareEnv;
+    const { versionName, packageId, envFileCache, versionCode } = prepareEnv;
     cd(resolve(workspace, "./android"));
     await $`pwd`;
     $.env = {
@@ -25,7 +20,7 @@ async function buildAndroid(context: any, options?: { clean?: boolean }) {
     }
 
     await $`./gradlew assembleRelease --quiet`;
-    const productFile = `${output}/${PACKAGE_ID}-${versionCode}-${versionName}_${commitId}.apk`;
+    const productFile = `${output}/${packageId}-${versionCode}-${versionName}_${commitId}.apk`;
     // TODO：准确的获取到 gradle 产出物；这个是定义到 build.gradle 里的
     copySync("app/build/outputs/apk/release/app-release.apk", productFile);
     removeSync(envFileCache);

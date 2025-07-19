@@ -18,7 +18,7 @@ export async function prepareEnvProperties(
     // 从 env 环境变量同步公共配置到 android 的 env.properties
     Object.keys(envContent).forEach((key) => {
       const value = envContent[key];
-      const newKey = key.replace("EXPO_PUBLIC", "");
+      const newKey = key.replace("EXPO_PUBLIC_", "");
       if (newKey in envPropertiesContent) {
         envPropertiesContent[newKey] = value;
       }

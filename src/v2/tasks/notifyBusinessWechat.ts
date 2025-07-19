@@ -4,7 +4,7 @@ import { setTaskName } from "../utils/common";
 async function notifyBusinessWechat(context: any, webhook: string) {
   try {
     const { projectName, branch, variables, prepareEnv } = context;
-    const { versionName, versionCode, APPLICATION_ID } = prepareEnv;
+    const { versionName, versionCode, applicationId } = prepareEnv;
     // 添加预设模板
     await fetch(webhook, {
       method: "POST",
@@ -21,7 +21,7 @@ async function notifyBusinessWechat(context: any, webhook: string) {
 **部署消息**：发布至 pgyer.com\n
 **运行状态**：✅ <font color=\"#52c41a\">运行成功</font>\n
 >commit：${variables.commitId}
->包名：${APPLICATION_ID}
+>包名：${applicationId}
 >分支：${branch}
 >版本：${versionName}(Build ${versionCode})`,
         },

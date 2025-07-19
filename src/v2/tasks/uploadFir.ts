@@ -1,20 +1,20 @@
 import { Platform } from "../types";
 import { setTaskName } from "../utils/common";
-import { getToken, upload, uploadByCurl } from "../utils/fir";
+import { getToken, uploadByCurl } from "../utils/fir";
 async function uploadFir(context: any, apiToken: string, platform: Platform) {
   try {
     const { buildAndroid, prepareEnv } = context;
     const { productFile } = buildAndroid;
-    const { PACKAGE_ID, APP_NAME, versionCode, versionName } = prepareEnv;
+    const { packageId, appName, versionCode, versionName } = prepareEnv;
     const uploadWithToken = await getToken({
       apiToken,
       platform,
-      packageName: PACKAGE_ID, // 来源于 .env
+      packageName: packageId, // 来源于 .env
     });
     await uploadByCurl({
       ...uploadWithToken,
       platform,
-      appName: APP_NAME,
+      appName: appName,
       versionCode: versionCode,
       versionName: versionName,
       filepath: productFile,
