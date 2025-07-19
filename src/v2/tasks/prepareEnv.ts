@@ -1,10 +1,11 @@
+import { log } from "@clack/prompts";
 import dayjs from "dayjs";
 import { readFileSync, writeFileSync } from "fs-extra";
 import { resolve } from "path";
 import { dotEnvToJson, jsonToDotEnv, setTaskName } from "../utils/common";
 async function prepareEnv(context: any, envFile: string) {
   try {
-    console.warn(context.workspace);
+    log.info(context.workspace);
     const { workspace, logger } = context;
 
     const packageJSON = JSON.parse(
@@ -13,29 +14,29 @@ async function prepareEnv(context: any, envFile: string) {
     // 读取预设 envFile 内容
     const envContent = dotEnvToJson(readFileSync(envFile, "utf-8"));
 
-    const versionName =
-      envContent.ENV_TYPE === "production"
-        ? packageJSON.version
-        : `${packageJSON.version}-${envContent.ENV_TYPE}`;
-    const versionCode = dayjs().format("YYMMDDHH");
-    const envs = {
-      versionName,
-      versionCode,
-    };
-    context.logger.info(envs);
-    const newEnvContent = jsonToDotEnv({
-      ...envContent,
-      VERSION: versionName,
-      VERSION_CODE: versionCode,
-    });
+    envContent["EXPO_PUBLIC_VERSION_NAME"] = `${
+      packageJSON.version
+    }.${dayjs().format("YYMMDDHH")}`;
+    envContent["EXPO_PUBLIC_VERSION_CODE"] = String(
+      Number(envContent["EXPO_PUBLIC_VERSION_CODE"]) + 1
+    );
+
+    log.info(`env ${JSON.stringify(envContent, null, 2)}`);
+
+    const newEnvContent = jsonToDotEnv(envContent);
     // build 时环境变量文件
-    const envFileCache = resolve(workspace, "./.env.build.cache");
+    const envFileCache = resolve(workspace, "./.env");
     writeFileSync(envFileCache, newEnvContent, "utf-8");
-    const result = { ...envContent, ...envs, envFileCache };
+    const result = {
+      envContent,
+      envFileCache,
+    };
     logger.info(result);
     return result;
   } catch (error) {
-    console.log("环境变量设置失败", error);
+    if (error instanceof Error) {
+      log.error("环境变量设置失败 " + error.message);
+    }
   }
   return false;
 }
