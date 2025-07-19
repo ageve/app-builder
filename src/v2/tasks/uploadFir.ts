@@ -5,11 +5,11 @@ async function uploadFir(context: any, apiToken: string, platform: Platform) {
   try {
     const { buildAndroid, prepareEnv } = context;
     const { productFile } = buildAndroid;
-    const { packageId, appName, versionCode, versionName } = prepareEnv;
+    const { applicationId, appName, versionCode, versionName } = prepareEnv;
     const uploadWithToken = await getToken({
       apiToken,
       platform,
-      packageName: packageId, // 来源于 .env
+      packageName: applicationId, // 来源于 .env
     });
     await uploadByCurl({
       ...uploadWithToken,
