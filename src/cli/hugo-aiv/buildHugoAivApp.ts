@@ -9,7 +9,8 @@ import {
 } from "../../utils";
 import { parseAndValidateArgs } from "../../utils/parseValidateArgs";
 import { Args, argsSchema } from "../../utils/zodSchemas";
-import copyToFileBrowser from "../../v2/custom/copyToFileBrower";
+import { codemodAndroid } from "../../v2/custom/codemodAndroid";
+import copyToFileBrowser from "../../v2/custom/copyToFileBrowser";
 import createPrepareEnvProperties from "../../v2/custom/prepareEnvProperties";
 import Pipeline from "../../v2/pipeline";
 import { pipelineRun } from "../../v2/pipelineRun";
@@ -102,6 +103,7 @@ async function buildPipeline({
         prepareVar,
         createPrepareEnv(envPath, !(args.versionCode === "false")),
         createPrepareEnvProperties(envPropertiesPath),
+        codemodAndroid,
         createBuildAndroid({ clean: true }),
         copyToFileBrowser,
       ];

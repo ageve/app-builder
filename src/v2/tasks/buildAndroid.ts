@@ -34,9 +34,11 @@ async function buildAndroid(context: any, options?: { clean?: boolean }) {
     // TODO：准确的获取到 gradle 产出物；这个是定义到 build.gradle 里的
     copySync("app/build/outputs/apk/release/app-release.apk", productFile);
     removeSync(envFileCache);
-    const result = { productFile };
-    logger.info(result);
 
+    const result = { productFile };
+
+    logger.info(result);
+    await $`git reset --hard`;
     return result;
   } catch (error) {
     console.log(error);

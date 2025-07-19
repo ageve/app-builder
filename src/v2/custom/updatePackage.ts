@@ -1,5 +1,6 @@
 import open from "open";
 import builderConfig from "../config.global";
+import { setTaskName } from "../utils/common";
 
 /**
  * 打开后台网页执行自动更新包信息
@@ -58,3 +59,5 @@ export default async function updatePackage(context: any) {
   }
   return false;
 }
+
+setTaskName("updatePackage", updatePackage);
