@@ -7,6 +7,7 @@ import {
   importIfExistsAndValidate,
   type Config,
 } from "../../utils";
+import copyToFileBrowser from "../../v2/custom/copyToFileBrower";
 import createPrepareEnvProperties from "../../v2/custom/prepareEnvProperties";
 import Pipeline from "../../v2/pipeline";
 import { pipelineRun } from "../../v2/pipelineRun";
@@ -89,6 +90,7 @@ async function buildPipeline({
         createPrepareEnv(envPath),
         createPrepareEnvProperties(envPropertiesPath),
         createBuildAndroid({ clean: true }),
+        copyToFileBrowser,
       ];
 
       // 本地使用额外处理: 请确认本地项目路径和构建脚本的路径
