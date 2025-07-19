@@ -72,7 +72,7 @@ async function prepareEnv(
 
 export default function createPrepareEnv(
   envFile: string,
-  incrementVersionCode = true
+  incrementVersionCode = false
 ) {
   const task = (context: any) =>
     prepareEnv(context, envFile, incrementVersionCode);

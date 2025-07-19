@@ -7,6 +7,7 @@ import {
   importIfExistsAndValidate,
   type Config,
 } from "../../utils";
+import { matchFirst } from "../../utils/matchFirst";
 import { parseAndValidateArgs } from "../../utils/parseValidateArgs";
 import { Args, argsSchema } from "../../utils/zodSchemas";
 import { codemodAndroid } from "../../v2/custom/codemodAndroid";
@@ -98,11 +99,18 @@ async function buildPipeline({
         "./envs/hugo-aiv-app",
         `.env.${packageAlias}.properties`
       );
+      const incrementVersionCode = matchFirst<boolean | undefined>()
+        .when(args.versionCode === "true", true)
+        .when(!args.versionCode && env === "production", true)
+        .when(args.versionCode === "false", false)
+        .when(!args.versionCode && env === "alpha", false)
+        .default(undefined);
+
       const tasks: Task[] = [
         prepareCode,
         prepareDependencies,
         prepareVar,
-        createPrepareEnv(envPath, !(args.versionCode === "false")),
+        createPrepareEnv(envPath, incrementVersionCode),
         createPrepareEnvProperties(envPropertiesPath),
         codemodAndroid,
         createBuildAndroid({ clean: true }),
