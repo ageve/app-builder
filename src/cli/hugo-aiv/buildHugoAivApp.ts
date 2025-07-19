@@ -19,6 +19,7 @@ import prepareCode from "../../v2/tasks/prepareCode";
 import prepareDependencies from "../../v2/tasks/prepareDependencies";
 import createPrepareEnv from "../../v2/tasks/prepareEnv";
 import prepareVar from "../../v2/tasks/prepareVar";
+import createUploadFir from "../../v2/tasks/uploadFir";
 import { Task } from "../../v2/types";
 
 const androidPackages = ["qin", "hookAi"];
@@ -107,6 +108,11 @@ async function buildPipeline({
         createBuildAndroid({ clean: true }),
         copyToFileBrowser,
       ];
+
+      // 测试环境包上传 fir
+      if (env === "alpha" && config?.fir?.apiKey) {
+        tasks.push(createUploadFir(config.fir.apiKey, "android"));
+      }
 
       // 本地使用额外处理: 请确认本地项目路径和构建脚本的路径
       const pipeline = new Pipeline(
