@@ -2,7 +2,6 @@ import { z } from "zod";
 
 export const configSchema = z.object({
   gitUri: z.string(),
-  pgkManager: z.enum(["bun", "npm", "pnpm", "yarn"]),
   pgyer: z
     .object({
       apiKey: z.string(),
