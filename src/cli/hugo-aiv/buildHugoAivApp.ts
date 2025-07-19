@@ -100,7 +100,7 @@ async function buildPipeline({
         prepareCode,
         prepareDependencies,
         prepareVar,
-        createPrepareEnv(envPath, args.versionCode === "true"),
+        createPrepareEnv(envPath, !(args.versionCode === "false")),
         createPrepareEnvProperties(envPropertiesPath),
         createBuildAndroid({ clean: true }),
         copyToFileBrowser,
