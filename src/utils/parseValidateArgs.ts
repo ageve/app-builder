@@ -19,6 +19,8 @@ export function parseAndValidateArgs<T extends ZodType>({
     (k) => !["_", "$0"].includes(k)
   );
 
+  // log.info("rawArgv" + JSON.stringify(rawArgv));
+
   const invalidKeys = inputKeys.filter((k) => !allowedKeys.includes(k));
 
   if (invalidKeys.length > 0) {
