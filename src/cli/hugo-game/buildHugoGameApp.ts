@@ -3,6 +3,7 @@ import { readdirSync } from "fs-extra";
 import { resolve } from "node:path";
 import { cwd } from "node:process";
 import { rimraf } from "rimraf";
+import config from "../../config.example";
 import updatePackage from "../../v2/custom/updatePackage";
 import uploadQiniu from "../../v2/custom/uploadQiniu";
 import Pipeline from "../../v2/pipeline";
@@ -18,7 +19,6 @@ import createUploadFir from "../../v2/tasks/uploadFir";
 import createUploadPgyer from "../../v2/tasks/uploadPgyer";
 import { Task } from "../../v2/types";
 import tasksParallel from "../../v2/utils/tasksParallel";
-import config from "./config.example";
 const pipelineGroup = [
   "production",
   "alpha",
