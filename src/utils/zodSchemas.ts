@@ -37,3 +37,9 @@ export const configSchema = z.object({
 });
 
 export type Config = z.infer<typeof configSchema>;
+
+export const argsSchema = z.object({
+  versionCode: z.enum(["true", "false"]).optional(),
+});
+
+export type Args = z.infer<typeof argsSchema>;

@@ -8,7 +8,11 @@ import {
   jsonToDotEnv,
   setTaskName,
 } from "../utils/common";
-async function prepareEnv(context: any, envFile: string) {
+async function prepareEnv(
+  context: any,
+  envFile: string,
+  incrementVersionCode?: boolean
+) {
   try {
     log.info(context.workspace);
     const { workspace, logger } = context;
@@ -19,12 +23,22 @@ async function prepareEnv(context: any, envFile: string) {
     // 读取预设 envFile 内容
     const envContent = dotEnvToJson(readFileSync(envFile, "utf-8"));
 
-    envContent["EXPO_PUBLIC_VERSION_NAME"] = `${
-      packageJSON.version
-    }.${dayjs().format("YYMMDDHH")}`;
-    envContent["EXPO_PUBLIC_VERSION_CODE"] = String(
-      Number(envContent["EXPO_PUBLIC_VERSION_CODE"]) + 1
-    );
+    const versionName = envContent["EXPO_PUBLIC_VERSION_NAME"];
+    const versionCode = envContent["EXPO_PUBLIC_VERSION_CODE"];
+
+    const newVersionName = `${packageJSON.version}.${dayjs().format(
+      "YYMMDDHH"
+    )}`;
+
+    const newVersionCode = incrementVersionCode
+      ? String(Number(envContent["EXPO_PUBLIC_VERSION_CODE"]) + 1)
+      : envContent["EXPO_PUBLIC_VERSION_CODE"];
+
+    envContent["EXPO_PUBLIC_VERSION_NAME"] = newVersionName;
+    envContent["EXPO_PUBLIC_VERSION_CODE"] = newVersionCode;
+
+    log.info(`versionName: ${versionName} -> ${newVersionName}`);
+    log.info(`versionCode: ${versionCode} -> ${newVersionCode}`);
 
     log.info(`env ${JSON.stringify(envContent, null, 2)}`);
 
@@ -32,7 +46,10 @@ async function prepareEnv(context: any, envFile: string) {
     // build 时环境变量文件
     const envFileCache = resolve(workspace, "./.env");
     writeFileSync(envFileCache, newEnvContent, "utf-8");
+    writeFileSync(envFile, newEnvContent, "utf-8");
+
     const normalizeEnvVariables: Record<string, unknown> = {};
+
     Object.keys(envContent).forEach((key) => {
       const value = envContent[key];
       const newKey = convertExpoPublicKey(key);
@@ -47,14 +64,18 @@ async function prepareEnv(context: any, envFile: string) {
     return result;
   } catch (error) {
     if (error instanceof Error) {
-      log.error("环境变量设置失败 " + error.message);
+      log.error("Failed to set environment variable, " + error.message);
     }
   }
   return false;
 }
 
-export default function createPrepareEnv(envFile: string) {
-  const task = (context: any) => prepareEnv(context, envFile);
+export default function createPrepareEnv(
+  envFile: string,
+  incrementVersionCode = true
+) {
+  const task = (context: any) =>
+    prepareEnv(context, envFile, incrementVersionCode);
   setTaskName("prepareEnv", task);
   return task;
 }

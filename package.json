@@ -20,6 +20,7 @@
     "form-data": "^4.0.0",
     "fs-extra": "^11.2.0",
     "git-describe": "^4.1.1",
+    "leven": "^4.0.0",
     "lodash": "^4.17.21",
     "moment-timezone": "^0.5.41",
     "nanoid": "^5.0.4",
@@ -34,6 +35,7 @@
     "typescript": "^4.9.5",
     "uuid": "^9.0.0",
     "winston": "^3.11.0",
+    "yargs": "^18.0.0",
     "zod": "^4.0.5",
     "zx": "^7.2.3"
   },
@@ -45,6 +47,7 @@
     "@types/node-fetch": "^2.6.2",
     "@types/properties-reader": "^2.1.1",
     "@types/uuid": "^9.0.1",
+    "@types/yargs": "^17.0.33",
     "ts-node": "^10.9.2"
   }
 }

@@ -7,6 +7,8 @@ import {
   importIfExistsAndValidate,
   type Config,
 } from "../../utils";
+import { parseAndValidateArgs } from "../../utils/parseValidateArgs";
+import { Args, argsSchema } from "../../utils/zodSchemas";
 import copyToFileBrowser from "../../v2/custom/copyToFileBrower";
 import createPrepareEnvProperties from "../../v2/custom/prepareEnvProperties";
 import Pipeline from "../../v2/pipeline";
@@ -40,6 +42,15 @@ export async function buildHugoAivApp() {
       log.error(result.error);
       return process.exit(0);
     }
+    const args = parseAndValidateArgs({
+      schema: argsSchema,
+      allowedKeys: ["versionCode"],
+      description: {
+        versionCode:
+          "Controls whether to increment versionCode, default value is true.",
+      },
+    });
+    log.info("args " + JSON.stringify(args));
     const pipelines = await multiselect({
       message: "Select the build pipelines.",
       options: pipelineOptions.map((item) => ({
@@ -53,7 +64,7 @@ export async function buildHugoAivApp() {
       process.exit(0);
     }
 
-    await buildPipeline({ config: projectConfig!, pipelines });
+    await buildPipeline({ config: projectConfig!, pipelines, args });
   } catch (error) {
     if (error instanceof Error) {
       log.error("Build failed, " + error.message);
@@ -65,9 +76,11 @@ export async function buildHugoAivApp() {
 async function buildPipeline({
   config,
   pipelines,
+  args,
 }: {
   config: Config;
   pipelines: string[];
+  args: Args;
 }) {
   await pipelineRun(
     pipelines.map((item) => {
