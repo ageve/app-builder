@@ -93,7 +93,7 @@ async function buildPipeline({
 
       // 本地使用额外处理: 请确认本地项目路径和构建脚本的路径
       const pipeline = new Pipeline(
-        { config, branch, gitUri: config.gitUri, clean: true },
+        { config, branch, gitUri: config.gitUri, clean: true, env },
         tasks
       );
       pipeline.registerBeforeRun(async (context) => {

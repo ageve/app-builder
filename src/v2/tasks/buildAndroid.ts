@@ -4,7 +4,7 @@ import { $, cd } from "zx";
 import { setTaskName } from "../utils/common";
 async function buildAndroid(context: any, options?: { clean?: boolean }) {
   try {
-    const { workspace, output, prepareEnv, variables, logger } = context;
+    const { workspace, output, prepareEnv, variables, logger, env } = context;
     const { commitId } = variables;
     const { versionName, packageId, envFileCache, versionCode } = prepareEnv;
     cd(resolve(workspace, "./android"));
@@ -20,7 +20,8 @@ async function buildAndroid(context: any, options?: { clean?: boolean }) {
     }
 
     await $`./gradlew assembleRelease --quiet`;
-    const productFile = `${output}/${packageId}-${versionCode}-${versionName}_${commitId}.apk`;
+    const names = [packageId, versionCode, versionName, env ?? "", commitId];
+    const productFile = `${output}/${names.join("_")}.apk`;
     // TODO：准确的获取到 gradle 产出物；这个是定义到 build.gradle 里的
     copySync("app/build/outputs/apk/release/app-release.apk", productFile);
     removeSync(envFileCache);

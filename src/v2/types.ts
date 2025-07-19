@@ -11,6 +11,7 @@ export type Options = {
   config: Config;
   workspace?: string;
   clean?: boolean;
+  env?: string;
 };
 export type Context = Options & Record<string, unknown>;
 
