@@ -7,6 +7,7 @@ import {
   importIfExistsAndValidate,
   type Config,
 } from "../../utils";
+import createPrepareEnvProperties from "../../v2/custom/prepareEnvProperties";
 import Pipeline from "../../v2/pipeline";
 import { pipelineRun } from "../../v2/pipelineRun";
 import createBuildAndroid from "../../v2/tasks/buildAndroid";
@@ -76,11 +77,17 @@ async function buildPipeline({
         "./envs/hugo-aiv-app",
         `.env.${packageAlias}.${env}`
       );
+      const envPropertiesPath = resolve(
+        cwd(),
+        "./envs/hugo-aiv-app",
+        `.env.${packageAlias}.properties`
+      );
       const tasks: Task[] = [
         prepareCode,
         prepareDependencies,
         prepareVar,
         createPrepareEnv(envPath),
+        createPrepareEnvProperties(envPropertiesPath),
         createBuildAndroid({ clean: true }),
       ];
 
