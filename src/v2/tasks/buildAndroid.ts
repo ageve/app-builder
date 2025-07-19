@@ -17,10 +17,10 @@ async function buildAndroid(context: any, options?: { clean?: boolean }) {
     await $`echo $ENVFILE`;
     await $`chmod +x gradlew`;
     if (options?.clean) {
-      await $`./gradlew clean`;
+      await $`./gradlew clean -q -Dorg.gradle.logging.level=quiet > /dev/null 2>&1`;
     }
 
-    await $`./gradlew assembleRelease --quiet`;
+    await $`./gradlew assembleRelease -q -Dorg.gradle.logging.level=quiet > /dev/null 2>&1`;
     const names = [
       applicationId,
       versionCode,
