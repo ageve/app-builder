@@ -2,6 +2,7 @@ import { copySync, removeSync } from "fs-extra";
 import { resolve } from "path";
 import { $, cd } from "zx";
 import { setTaskName } from "../utils/common";
+
 async function buildAndroid(context: any, options?: { clean?: boolean }) {
   try {
     const { workspace, output, prepareEnv, variables, logger, env } = context;
@@ -17,10 +18,11 @@ async function buildAndroid(context: any, options?: { clean?: boolean }) {
     await $`echo $ENVFILE`;
     await $`chmod +x gradlew`;
     if (options?.clean) {
-      await $`./gradlew clean -q -Dorg.gradle.logging.level=quiet > /dev/null 2>&1`;
+      await $`./gradlew clean -q -Dorg.gradle.logging.level=quiet`;
     }
 
-    await $`./gradlew assembleRelease -q -Dorg.gradle.logging.level=quiet > /dev/null 2>&1`;
+    await $`./gradlew assembleRelease -q -Dorg.gradle.logging.level=quiet`;
+
     const names = [
       applicationId,
       versionCode,
