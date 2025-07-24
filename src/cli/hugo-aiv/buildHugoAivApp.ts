@@ -96,8 +96,8 @@ async function buildPipeline({
 }) {
   await pipelineRun(
     pipelines.map((item) => {
-      const [packageAlias, system, env] = item.split("-");
-      const branch = env === "alpha" ? "alpha" : "main";
+      const [packageAlias, system, env, branch] = item.split("-");
+      // const branch = env === "alpha" ? "alpha" : "main";
       const envPath = resolve(
         cwd(),
         "./envs/hugo-aiv-app",
