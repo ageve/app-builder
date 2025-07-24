@@ -10,3 +10,16 @@ export function firstMatch<T>(
 ): T {
   return rules.find((r) => r.condition)?.value ?? defaultValue;
 }
+
+export function cartesian4<A, B, C, D>(
+  a: A[],
+  b: B[],
+  c: C[],
+  d: D[]
+): [A, B, C, D][] {
+  return a.flatMap((x) =>
+    b.flatMap((y) =>
+      c.flatMap((z) => d.map((w) => [x, y, z, w] as [A, B, C, D]))
+    )
+  );
+}

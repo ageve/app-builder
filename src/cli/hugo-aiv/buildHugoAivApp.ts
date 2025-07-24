@@ -1,12 +1,13 @@
 import { cancel, isCancel, log, multiselect } from "@clack/prompts";
 import path, { resolve } from "node:path";
 import { cwd } from "node:process";
+import picocolors from "picocolors";
 import {
-  cartesian3,
   configSchema,
   importIfExistsAndValidate,
   type Config,
 } from "../../utils";
+import { cartesian4 } from "../../utils/common";
 import { parseAndValidateArgs } from "../../utils/parseValidateArgs";
 import { Args, argsSchema } from "../../utils/zodSchemas";
 import { codemodAndroid } from "../../v2/custom/codemodAndroid";
@@ -21,13 +22,15 @@ import createPrepareEnv from "../../v2/tasks/prepareEnv";
 import prepareVar from "../../v2/tasks/prepareVar";
 import renameLog from "../../v2/tasks/renameLog";
 import createUploadFir from "../../v2/tasks/uploadFir";
+import createUploadPgyer from "../../v2/tasks/uploadPgyer";
 import { Task } from "../../v2/types";
 
-const androidPackages = ["qin", "hookAi"];
-const applications = ["android", "iOS"];
-const envs = ["alpha", "production"];
+const androidPackages = ["qin", "hookAi"]; // 包名
+const applications = ["android"]; // 系统
+const envs = ["alpha", "production"]; // 环境配置
+const branch = ["alpha", "main"]; // 代码分支
 
-const pipelineOptions = cartesian3(androidPackages, applications, envs)
+const pipelineOptions = cartesian4(androidPackages, applications, envs, branch)
   .filter((item) => !item.includes("iOS"))
   .map((item) => item.join("-"));
 
@@ -54,6 +57,12 @@ export async function buildHugoAivApp() {
       },
     });
     log.info("args " + JSON.stringify(args));
+    log.message(
+      "🚨 " +
+        picocolors.bgMagenta(
+          "pipeline rule: [packageName]-[applicationSystem]-[envConfig]-[codeBranch]"
+        )
+    );
     const pipelines = await multiselect({
       message: "Select the build pipelines.",
       options: pipelineOptions.map((item) => ({
@@ -115,6 +124,10 @@ async function buildPipeline({
       // 测试环境包上传 fir
       if (env === "alpha" && config?.fir?.apiKey) {
         tasks.push(createUploadFir(config.fir.apiKey, "android"));
+      }
+
+      if (env === "production" && config?.pgyer?.apiKey) {
+        tasks.push(createUploadPgyer(config!.pgyer));
       }
 
       tasks.push(renameLog);
