@@ -27,7 +27,7 @@ async function prepareEnv(
     const versionCode = envContent["EXPO_PUBLIC_VERSION_CODE"];
 
     const newVersionName = `${packageJSON.version}.${dayjs().format(
-      "YYMMDDHH"
+      "YYMMDDHHmm"
     )}`;
 
     const newVersionCode = incrementVersionCode
