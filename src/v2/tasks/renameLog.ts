@@ -1,16 +1,15 @@
-import { setTaskName } from "../utils/common";
 import { renameSync } from "fs-extra";
 import { resolve } from "node:path";
-import { cwd } from "node:process";
+import { setTaskName } from "../utils/common";
 export default async function renameLog(context: any) {
   // 检查文件夹是否存在，否创建
   try {
-    const { logFile, projectName, prepareEnv, variables, cwd } = context;
+    const { logFile, projectName, prepareEnv, variables, env, cwd } = context;
     const { commitId } = variables;
-    const { versionName, PACKAGE_ID } = prepareEnv;
+    const { applicationId } = prepareEnv;
     const filename = resolve(
       cwd,
-      `./build/${projectName}/${PACKAGE_ID}-${versionName}_${commitId}.log`
+      `./build/${projectName}/${applicationId}.${env}.${commitId}.log`
     );
 
     console.log(logFile, filename);
