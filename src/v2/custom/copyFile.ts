@@ -11,8 +11,8 @@ async function copyFile(
 
     for (const file of files) {
       const targetPath = resolve(workspace, file.target);
-      log.info(`✅ file ${file.file} copy to ${targetPath} success!`);
       fse.copyFileSync(file.file, targetPath);
+      log.info(`✅ file ${file.file} copy to ${targetPath} success!`);
     }
 
     log.info("✅ all file copy success!");
