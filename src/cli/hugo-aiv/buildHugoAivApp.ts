@@ -127,7 +127,7 @@ async function buildPipeline({
         createCopyFile([
           {
             file: agconnectFile,
-            target: "./android/app/agconnect-services.json",
+            target: "./android/app/agconnect-services.json", // resolve(workspace, target)
           },
         ]),
         createBuildAndroid({ clean: true }),
