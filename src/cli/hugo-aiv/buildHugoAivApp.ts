@@ -113,7 +113,7 @@ async function buildPipeline({
 
       const agconnectFile = resolve(
         cwd(),
-        "./env/hugo-aiv-app",
+        "./envs/hugo-aiv-app",
         `${packageAlias}-agconnect-services.json`
       );
 
