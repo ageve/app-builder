@@ -20,6 +20,7 @@ export async function codemodAndroid(context: any) {
     writeFileSync(buildGradlePath, content, "utf-8");
 
     log.info("✅ sync ApplicationId success!");
+
     return true;
   } catch (error) {
     if (error instanceof Error) {

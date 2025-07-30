@@ -11,6 +11,7 @@ import { cartesian4 } from "../../utils/common";
 import { parseAndValidateArgs } from "../../utils/parseValidateArgs";
 import { Args, argsSchema } from "../../utils/zodSchemas";
 import { codemodAndroid } from "../../v2/custom/codemodAndroid";
+import createCopyFile from "../../v2/custom/copyFile";
 import copyToFileBrowser from "../../v2/custom/copyToFileBrowser";
 import createPrepareEnvProperties from "../../v2/custom/prepareEnvProperties";
 import Pipeline from "../../v2/pipeline";
@@ -110,6 +111,12 @@ async function buildPipeline({
       );
       const incrementVersionCode = env === "production" || args.versionCode;
 
+      const agconnectFile = resolve(
+        cwd(),
+        "./env/hugo-aiv-app",
+        `${packageAlias}-agconnect-services.json`
+      );
+
       const tasks: Task[] = [
         prepareCode,
         prepareDependencies,
@@ -117,6 +124,12 @@ async function buildPipeline({
         createPrepareEnv(envPath, incrementVersionCode),
         createPrepareEnvProperties(envPropertiesPath),
         codemodAndroid,
+        createCopyFile([
+          {
+            file: agconnectFile,
+            target: "./android/app/agconnect-services.json",
+          },
+        ]),
         createBuildAndroid({ clean: true }),
         copyToFileBrowser,
       ];
