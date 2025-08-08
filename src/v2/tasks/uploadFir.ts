@@ -4,8 +4,12 @@ import { getToken, uploadByCurl } from "../utils/fir";
 async function uploadFir(context: any, apiToken: string, platform: Platform) {
   try {
     const { buildAndroid, prepareEnv } = context;
-    const { productFile } = buildAndroid;
+    const { productFiles } = buildAndroid;
     const { applicationId, appName, versionCode, versionName } = prepareEnv;
+    const target = (productFiles as string[]).find((it) =>
+      it.includes("universal")
+    );
+    if (!target) return false;
     const uploadWithToken = await getToken({
       apiToken,
       platform,
@@ -17,7 +21,7 @@ async function uploadFir(context: any, apiToken: string, platform: Platform) {
       appName: appName,
       versionCode: versionCode,
       versionName: versionName,
-      filepath: productFile,
+      filepath: target,
     });
     return true;
   } catch (error) {

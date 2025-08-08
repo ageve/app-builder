@@ -5,10 +5,15 @@ import { uploadPgyer } from "../utils/pgyer";
 export async function uploadPgyerTask(context: any, data: GetCorsTokenParams) {
   try {
     const { buildAndroid } = context;
+    const { productFiles } = buildAndroid;
+    const target = (productFiles as string[]).find((it) =>
+      it.includes("universal")
+    );
+    if (!target) return false;
     await uploadPgyer({
       getCorsTokenData: data,
       uploadData: {
-        productFile: buildAndroid.productFile,
+        productFile: target,
       },
     });
     return true;

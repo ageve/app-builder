@@ -8,8 +8,12 @@ const config = new qiniu.conf.Config();
 export default async function uploadQiniu(context: any) {
   try {
     const { buildAndroid, prepareEnv, logger } = context;
-    const { productFile } = buildAndroid;
+    const { productFiles } = buildAndroid;
     const { ENV_TYPE } = prepareEnv;
+    const target = (productFiles as string[]).find((it) =>
+      it.includes("universal")
+    );
+    if (!target) return false;
     // get uploadToken
     const url =
       ENV_TYPE === "alpha"
@@ -23,7 +27,7 @@ export default async function uploadQiniu(context: any) {
       body: JSON.stringify({
         storage: "Qiniu",
         size: 0,
-        name: path.basename(productFile),
+        name: path.basename(target),
         fileType: "apk",
         width: 0,
         height: 0,
@@ -42,7 +46,7 @@ export default async function uploadQiniu(context: any) {
       formUploader.putFile(
         uploadToken,
         key,
-        productFile,
+        target,
         putExtra,
         function (respErr, respBody, respInfo) {
           if (respErr) {
