@@ -1,5 +1,5 @@
 import { copySync, readdirSync, removeSync } from "fs-extra";
-import { resolve } from "path";
+import path, { resolve } from "path";
 import { $, cd } from "zx";
 import { setTaskName } from "../utils/common";
 
@@ -41,7 +41,7 @@ async function buildAndroid(context: any, options?: { clean?: boolean }) {
         const abi = match[1];
         const output = productFile(abi);
         list.push(output);
-        copySync(file, output);
+        copySync(path.join("app/build/outputs/apk/release", file), output);
       }
     }
 
