@@ -14,7 +14,7 @@ async function prepareEnv(
 ) {
   try {
     log.info(context.workspace);
-    const { workspace, logger, variables } = context;
+    const { workspace, logger, variables, env } = context;
 
     // 读取预设 envFile 内容
     const envContent = dotEnvToJson(readFileSync(envFile, "utf-8"));
@@ -25,7 +25,12 @@ async function prepareEnv(
     // Use commit hash as build number from variables
     const newBuildNumber = variables?.commitCount;
 
-    const newVersionCode = incrementVersionCode
+    // Only increment version code for production environment by default
+    const shouldIncrementVersionCode = incrementVersionCode !== undefined 
+      ? incrementVersionCode 
+      : env === "production";
+
+    const newVersionCode = shouldIncrementVersionCode
       ? String(Number(envContent["EXPO_PUBLIC_VERSION_CODE"]) + 1)
       : envContent["EXPO_PUBLIC_VERSION_CODE"];
     
@@ -36,11 +41,16 @@ async function prepareEnv(
       newVersionName = legacyVersionName;
       log.info(`Using legacy version name: ${legacyVersionName}`);
     } else {
-      // Convert newVersionCode to semantic version (e.g., 1001002 -> 1.1.2)
+      // Convert newVersionCode to semantic version
       const currentVersionCode = Number(newVersionCode);
-      const major = Math.floor(currentVersionCode / 1000000);
-      const minor = Math.floor((currentVersionCode % 1000000) / 1000);
-      const patch = currentVersionCode % 1000;
+      log.info(`Parsing version code: ${currentVersionCode}`);
+      
+      let major, minor, patch;
+      // format: 101002 -> 1.1.2
+      major = Math.floor(currentVersionCode / 100000);
+      minor = Math.floor((currentVersionCode % 100000) / 1000);
+      patch = currentVersionCode % 1000;
+      
       const semanticVersion = `${major}.${minor}.${patch}`;
       
       newVersionName = `${semanticVersion}.${newBuildNumber}`;
@@ -50,8 +60,9 @@ async function prepareEnv(
     envContent["EXPO_PUBLIC_VERSION_CODE"] = newVersionCode;
 
     log.info(`versionName: ${newVersionName}`);
-    log.info(`versionCode: ${versionCode} -> ${newVersionCode}`);
+    log.info(`versionCode: ${versionCode} -> ${newVersionCode}${shouldIncrementVersionCode ? ' (incremented)' : ' (unchanged)'}`);
     log.info(`buildNumber: ${newBuildNumber}`);
+    log.info(`environment: ${env} (version code increment: ${shouldIncrementVersionCode})`);
 
     log.info(`env ${JSON.stringify(envContent, null, 2)}`);
 
