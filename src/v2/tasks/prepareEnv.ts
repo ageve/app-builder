@@ -84,6 +84,7 @@ async function prepareEnv(
       envFileCache,
       ...normalizeEnvVariables,
       versionName: newVersionName,
+      versionCode: newVersionCode,
     };
     logger.info(result);
     return result;

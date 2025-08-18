@@ -9,12 +9,13 @@ export async function prepareEnvProperties(
   // 检查文件夹是否存在，否创建
   try {
     const { prepareEnv, workspace } = context;
-    const { envContent } = prepareEnv;
+    const { envContent, versionName, versionCode } = prepareEnv;
 
     // 读取预设 envFile 内容
     const envPropertiesContent = dotEnvToJson(
       readFileSync(envPropertiesFile, "utf-8")
     );
+    
     // 从 env 环境变量同步公共配置到 android 的 env.properties
     Object.keys(envContent).forEach((key) => {
       const value = envContent[key];
@@ -23,6 +24,17 @@ export async function prepareEnvProperties(
         envPropertiesContent[newKey] = value;
       }
     });
+
+    // Ensure latest version information is saved
+    if (versionName) {
+      envPropertiesContent["VERSION_NAME"] = versionName;
+      log.info(`Updated VERSION_NAME in env.properties: ${versionName}`);
+    }
+    
+    if (versionCode) {
+      envPropertiesContent["VERSION_CODE"] = versionCode;
+      log.info(`Updated VERSION_CODE in env.properties: ${versionCode}`);
+    }
 
     const newEnvPropertiesContent = jsonToDotEnv(envPropertiesContent);
     const envPropertiesFileBuild = resolve(
