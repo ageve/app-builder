@@ -5,9 +5,8 @@ import { setTaskName } from "../utils/common";
 
 async function buildAndroid(context: any, options?: { clean?: boolean }) {
   try {
-    const { workspace, output, prepareEnv, variables, logger, env } = context;
-    const { commitId } = variables;
-    const { versionName, applicationId, envFileCache, versionCode } =
+    const { workspace, output, prepareEnv, logger, env } = context;
+    const { versionName, applicationId, envFileCache } =
       prepareEnv;
     cd(resolve(workspace, "./android"));
     await $`pwd`;
@@ -25,10 +24,8 @@ async function buildAndroid(context: any, options?: { clean?: boolean }) {
 
     const names = [
       applicationId,
-      versionCode,
       versionName,
       env ?? "",
-      commitId,
     ];
     const productFile = (abi = "") =>
       `${output}/${[...names, abi].filter((it) => it).join("_")}.apk`;
@@ -36,7 +33,7 @@ async function buildAndroid(context: any, options?: { clean?: boolean }) {
     const list: string[] = [];
     const files = readdirSync("app/build/outputs/apk/release");
     for (const file of files) {
-      const match = file.match(/^app-([^-]+)-release\.apk$/);
+      const match = file.match(/^app-(.+)-release\.apk$/);
       if (match && match.length > 1) {
         const abi = match[1];
         const output = productFile(abi);

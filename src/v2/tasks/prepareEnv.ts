@@ -1,5 +1,4 @@
 import { log } from "@clack/prompts";
-import dayjs from "dayjs";
 import { readFileSync, writeFileSync } from "fs-extra";
 import { resolve } from "path";
 import {
@@ -15,30 +14,44 @@ async function prepareEnv(
 ) {
   try {
     log.info(context.workspace);
-    const { workspace, logger } = context;
+    const { workspace, logger, variables } = context;
 
-    const packageJSON = JSON.parse(
-      readFileSync(resolve(workspace, "./package.json"), "utf-8")
-    );
     // 读取预设 envFile 内容
     const envContent = dotEnvToJson(readFileSync(envFile, "utf-8"));
 
-    const versionName = envContent["EXPO_PUBLIC_VERSION_NAME"];
     const versionCode = envContent["EXPO_PUBLIC_VERSION_CODE"];
-
-    const newVersionName = `${packageJSON.version}.${dayjs().format(
-      "YYMMDDHHmm"
-    )}`;
+    const legacyVersionName = envContent["EXPO_PUBLIC_VERSION_NAME"];
+    
+    // Use commit hash as build number from variables
+    const newBuildNumber = variables?.commitCount;
 
     const newVersionCode = incrementVersionCode
       ? String(Number(envContent["EXPO_PUBLIC_VERSION_CODE"]) + 1)
       : envContent["EXPO_PUBLIC_VERSION_CODE"];
+    
+    let newVersionName;
+    
+    // Backward compatibility: use legacy version name if provided
+    if (legacyVersionName) {
+      newVersionName = legacyVersionName;
+      log.info(`Using legacy version name: ${legacyVersionName}`);
+    } else {
+      // Convert newVersionCode to semantic version (e.g., 1001002 -> 1.1.2)
+      const currentVersionCode = Number(newVersionCode);
+      const major = Math.floor(currentVersionCode / 1000000);
+      const minor = Math.floor((currentVersionCode % 1000000) / 1000);
+      const patch = currentVersionCode % 1000;
+      const semanticVersion = `${major}.${minor}.${patch}`;
+      
+      newVersionName = `${semanticVersion}.${newBuildNumber}`;
+      log.info(`Generated version name: ${newVersionName}`);
+    }
 
-    envContent["EXPO_PUBLIC_VERSION_NAME"] = newVersionName;
     envContent["EXPO_PUBLIC_VERSION_CODE"] = newVersionCode;
 
-    log.info(`versionName: ${versionName} -> ${newVersionName}`);
+    log.info(`versionName: ${newVersionName}`);
     log.info(`versionCode: ${versionCode} -> ${newVersionCode}`);
+    log.info(`buildNumber: ${newBuildNumber}`);
 
     log.info(`env ${JSON.stringify(envContent, null, 2)}`);
 
@@ -59,6 +72,7 @@ async function prepareEnv(
       envContent,
       envFileCache,
       ...normalizeEnvVariables,
+      versionName: newVersionName,
     };
     logger.info(result);
     return result;
