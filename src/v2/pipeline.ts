@@ -19,7 +19,8 @@ export default class Pipeline {
   constructor(options: Options, tasks: Task[]) {
     const projectName = basename(options.gitUri).replace(".git", "");
     const workspace =
-      options?.workspace ?? resolve(cwd(), `../.orden/projects/${projectName}`);
+      options?.workspace ??
+      resolve(cwd(), `../app-builder-cache/projects/${projectName}`);
     const output = resolve(cwd(), `./build/${projectName}`);
     if (options.clean) {
       rimraf(output);
