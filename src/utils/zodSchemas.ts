@@ -39,7 +39,8 @@ export const configSchema = z.object({
 export type Config = z.infer<typeof configSchema>;
 
 export const argsSchema = z.object({
-  versionCode: z.boolean().optional(),
+  autoVersionCode: z.boolean().optional(),
+  legacyVersioning: z.boolean().optional(),
   dryRun: z.boolean().optional(),
 });
 

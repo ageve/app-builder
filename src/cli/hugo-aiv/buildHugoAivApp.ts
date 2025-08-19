@@ -51,10 +51,12 @@ export async function buildHugoAivApp() {
     }
     const args = parseAndValidateArgs({
       schema: argsSchema,
-      allowedKeys: ["versionCode"],
+      allowedKeys: ["autoVersionCode", "legacyVersioning"],
       description: {
-        versionCode:
-          "Controls whether to increment versionCode, default value is true.",
+        autoVersionCode:
+          "Controls whether to increment versionCode automatically, default value is true.",
+        legacyVersioning:
+          "Controls whether to active legacy versioning strategy for backward compatibility.",
       },
     });
     log.info("args " + JSON.stringify(args));
@@ -109,7 +111,8 @@ async function buildPipeline({
         "./envs/hugo-aiv-app",
         `.env.${packageAlias}.properties`
       );
-      const incrementVersionCode = env === "production" || args.versionCode;
+      const autoVersionCode = env === "production" || args.autoVersionCode;
+      const legacyVersioning = args.legacyVersioning || false;
 
       const agconnectFile = resolve(
         cwd(),
@@ -121,7 +124,7 @@ async function buildPipeline({
         prepareCode,
         prepareDependencies,
         prepareVar,
-        createPrepareEnv(envPath, incrementVersionCode),
+        createPrepareEnv(envPath, autoVersionCode, legacyVersioning),
         createPrepareEnvProperties(envPropertiesPath),
         codemodAndroid,
         createCopyFile([

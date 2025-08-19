@@ -10,7 +10,8 @@ import {
 async function prepareEnv(
   context: any,
   envFile: string,
-  incrementVersionCode?: boolean
+  autoVersionCode?: boolean,
+  legacyVersioning?: boolean
 ) {
   try {
     log.info(context.workspace);
@@ -26,8 +27,8 @@ async function prepareEnv(
     const newBuildNumber = variables?.commitCount;
 
     // Only increment version code for production environment by default
-    const shouldIncrementVersionCode = incrementVersionCode !== undefined 
-      ? incrementVersionCode 
+    const shouldIncrementVersionCode = autoVersionCode !== undefined 
+      ? autoVersionCode 
       : env === "production";
 
     const newVersionCode = shouldIncrementVersionCode
@@ -37,9 +38,9 @@ async function prepareEnv(
     let newVersionName;
     
     // Backward compatibility: use legacy version name if provided
-    if (legacyVersionName) {
+    if (legacyVersioning) {
+      log.info(`In legacy versioning mode, using version name from env: ${legacyVersionName}`);
       newVersionName = legacyVersionName;
-      log.info(`Using legacy version name: ${legacyVersionName}`);
     } else {
       // Convert newVersionCode to semantic version
       const currentVersionCode = Number(newVersionCode);
@@ -58,11 +59,12 @@ async function prepareEnv(
     }
 
     envContent["EXPO_PUBLIC_VERSION_CODE"] = newVersionCode;
+    envContent["EXPO_PUBLIC_VERSION_NAME"] = newVersionName;
 
-    log.info(`versionName: ${newVersionName}`);
+    log.info(`environment: ${env} (version code increment: ${shouldIncrementVersionCode})`);
     log.info(`versionCode: ${versionCode} -> ${newVersionCode}${shouldIncrementVersionCode ? ' (incremented)' : ' (unchanged)'}`);
     log.info(`buildNumber: ${newBuildNumber}`);
-    log.info(`environment: ${env} (version code increment: ${shouldIncrementVersionCode})`);
+    log.info(`versionName: ${newVersionName}`);
 
     log.info(`env ${JSON.stringify(envContent, null, 2)}`);
 
@@ -98,10 +100,11 @@ async function prepareEnv(
 
 export default function createPrepareEnv(
   envFile: string,
-  incrementVersionCode = false
+  autoVersionCode = false,
+  legacyVersioning = false
 ) {
   const task = (context: any) =>
-    prepareEnv(context, envFile, incrementVersionCode);
+    prepareEnv(context, envFile, autoVersionCode, legacyVersioning);
   setTaskName("prepareEnv", task);
   return task;
 }
