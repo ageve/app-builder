@@ -1,4 +1,4 @@
-import { copySync, readdirSync, removeSync } from "fs-extra";
+import { copySync, readdirSync } from "fs-extra";
 import path, { resolve } from "path";
 import { $, cd } from "zx";
 import { setTaskName } from "../utils/common";
@@ -42,7 +42,7 @@ async function buildAndroid(context: any, options?: { clean?: boolean }) {
       }
     }
 
-    removeSync(envFileCache);
+    // removeSync(envFileCache);
 
     const result = { productFiles: list };
 
