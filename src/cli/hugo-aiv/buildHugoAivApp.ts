@@ -33,12 +33,9 @@ const applications = ["android", "iOS"]; // 系统
 const envs = ["alpha", "production"]; // 环境配置
 const branch = ["alpha", "main"]; // 代码分支
 
-const pipelineOptions = cartesian4(
-  androidPackages,
-  applications,
-  envs,
-  branch
-).map((item) => item.join("-"));
+const pipelineOptions = cartesian4(androidPackages, applications, envs, branch)
+  .filter((item) => !item.includes("qin"))
+  .map((item) => item.join("-"));
 
 export async function buildHugoAivApp() {
   try {
