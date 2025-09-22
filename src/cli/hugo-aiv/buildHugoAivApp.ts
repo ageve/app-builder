@@ -13,6 +13,7 @@ import { Args, argsSchema } from "../../utils/zodSchemas";
 import { codemodAndroid } from "../../v2/custom/codemodAndroid";
 import createCopyFile from "../../v2/custom/copyFile";
 import copyToFileBrowser from "../../v2/custom/copyToFileBrowser";
+import createPrepareEnvConfig from "../../v2/custom/prepareEnvConfig";
 import createPrepareEnvProperties from "../../v2/custom/prepareEnvProperties";
 import Pipeline from "../../v2/pipeline";
 import { pipelineRun } from "../../v2/pipelineRun";
@@ -27,7 +28,7 @@ import createUploadPgyer from "../../v2/tasks/uploadPgyer";
 import { Task } from "../../v2/types";
 
 const androidPackages = ["qin", "hookAi"]; // 包名
-const applications = ["android"]; // 系统
+const applications = ["android", "iOS"]; // 系统
 const envs = ["alpha", "production"]; // 环境配置
 const branch = ["alpha", "main"]; // 代码分支
 
@@ -99,18 +100,26 @@ async function buildPipeline({
 }) {
   await pipelineRun(
     pipelines.map((item) => {
-      const [packageAlias, system, env, branch] = item.split("-");
+      const [packageAlias, platform, env, branch] = item.split("-");
       // const branch = env === "alpha" ? "alpha" : "main";
       const envPath = resolve(
         cwd(),
         "./envs/hugo-aiv-app",
         `.env.${packageAlias}.${env}`
       );
+      // android 平台
       const envPropertiesPath = resolve(
         cwd(),
         "./envs/hugo-aiv-app",
         `.env.${packageAlias}.properties`
       );
+
+      const envConfigPath = resolve(
+        cwd(),
+        "./envs/hugo-aiv-app",
+        `.env.${packageAlias}.xcconfig`
+      );
+
       const autoVersionCode = env === "production" || args.autoVersionCode;
       const legacyVersioning = args.legacyVersioning || false;
 
@@ -120,21 +129,30 @@ async function buildPipeline({
         `${packageAlias}-agconnect-services.json`
       );
 
+      const buildTasks =
+        platform === "android"
+          ? [
+              codemodAndroid,
+              createCopyFile([
+                {
+                  file: agconnectFile,
+                  target: "./android/app/agconnect-services.json", // resolve(workspace, target)
+                },
+              ]),
+              createBuildAndroid({ clean: true }),
+              copyToFileBrowser,
+            ]
+          : []; // iOS 如何让 env 有效
+
       const tasks: Task[] = [
         prepareCode,
         prepareDependencies,
         prepareVar,
-        createPrepareEnv(envPath, autoVersionCode, legacyVersioning),
-        createPrepareEnvProperties(envPropertiesPath),
-        codemodAndroid,
-        createCopyFile([
-          {
-            file: agconnectFile,
-            target: "./android/app/agconnect-services.json", // resolve(workspace, target)
-          },
-        ]),
-        createBuildAndroid({ clean: true }),
-        copyToFileBrowser,
+        createPrepareEnv(envPath, autoVersionCode, legacyVersioning, platform),
+        platform === "android"
+          ? createPrepareEnvProperties(envPropertiesPath)
+          : createPrepareEnvConfig(envConfigPath),
+        ...buildTasks,
       ];
 
       // 测试环境包上传 fir
