@@ -17,7 +17,7 @@ export default async function renameLog(context: any) {
     log.info(`${logFile} ${friendlyFile} ${commitId}`);
 
     renameSync(logFile, friendlyFile);
-    ensureDirSync(`./logs/${projectName}`);
+    ensureDirSync(resolve(cwd, `./logs/${projectName}`));
     copyFileSync(
       friendlyFile,
       resolve(
