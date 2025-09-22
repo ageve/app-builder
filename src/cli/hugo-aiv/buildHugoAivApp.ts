@@ -18,6 +18,7 @@ import createPrepareEnvProperties from "../../v2/custom/prepareEnvProperties";
 import Pipeline from "../../v2/pipeline";
 import { pipelineRun } from "../../v2/pipelineRun";
 import createBuildAndroid from "../../v2/tasks/buildAndroid";
+import createBuildIOS from "../../v2/tasks/buildIOS";
 import prepareCode from "../../v2/tasks/prepareCode";
 import prepareDependencies from "../../v2/tasks/prepareDependencies";
 import createPrepareEnv from "../../v2/tasks/prepareEnv";
@@ -145,7 +146,7 @@ async function buildPipeline({
               createBuildAndroid({ clean: true }),
               copyToFileBrowser,
             ]
-          : []; // iOS 如何让 env 有效
+          : [createBuildIOS()]; // iOS 如何让 env 有效
 
       const tasks: Task[] = [
         prepareCode,
@@ -158,13 +159,15 @@ async function buildPipeline({
         ...buildTasks,
       ];
 
-      // 测试环境包上传 fir
-      if (env === "alpha" && config?.fir?.apiKey) {
-        tasks.push(createUploadFir(config.fir.apiKey, "android"));
-      }
+      if (platform === "android") {
+        // 测试环境包上传 fir
+        if (env === "alpha" && config?.fir?.apiKey) {
+          tasks.push(createUploadFir(config.fir.apiKey, "android"));
+        }
 
-      if (env === "production" && config?.pgyer?.apiKey) {
-        tasks.push(createUploadPgyer(config!.pgyer));
+        if (env === "production" && config?.pgyer?.apiKey) {
+          tasks.push(createUploadPgyer(config!.pgyer));
+        }
       }
 
       tasks.push(renameLog);
