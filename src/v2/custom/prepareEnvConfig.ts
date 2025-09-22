@@ -1,5 +1,6 @@
 import { log } from "@clack/prompts";
 import { readFileSync, writeFileSync } from "fs-extra";
+import fs from "node:fs";
 import { resolve } from "node:path";
 import { dotEnvToJson, jsonToDotEnv, setTaskName } from "../utils/common";
 export async function prepareEnvConfig(context: any, envConfigFile: string) {
@@ -8,10 +9,11 @@ export async function prepareEnvConfig(context: any, envConfigFile: string) {
     const { prepareEnv, workspace } = context;
     const { envContent, versionName, versionCode } = prepareEnv;
 
-    // 读取预设 envFile 内容
-    const envPropertiesContent = dotEnvToJson(
-      readFileSync(envConfigFile, "utf-8")
-    );
+    let envPropertiesContent: Record<string, string> = {};
+    if (fs.existsSync(envConfigFile)) {
+      // 读取预设 envFile 内容
+      envPropertiesContent = dotEnvToJson(readFileSync(envConfigFile, "utf-8"));
+    }
 
     // 从 env 环境变量同步公共配置到 iOS 的 env.xcconfig
     Object.keys(envContent).forEach((key) => {
