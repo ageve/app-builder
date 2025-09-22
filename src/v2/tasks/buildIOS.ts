@@ -15,7 +15,7 @@ async function buildIOS(context: any, options?: {}) {
     await $`echo $ENVFILE`;
     await $`pod install`;
 
-    return;
+    return true;
   } catch (error) {
     console.log(error);
   }
