@@ -1,3 +1,4 @@
+import { log } from "@clack/prompts";
 import dayjs from "dayjs";
 import { copyFileSync, ensureDirSync, renameSync } from "fs-extra";
 import { resolve } from "node:path";
@@ -13,15 +14,18 @@ export default async function renameLog(context: any) {
       `./build/${projectName}/${applicationId}.${env}.${commitId}.log`
     );
 
-    console.log(logFile, friendlyFile);
+    log.info(`${logFile} ${friendlyFile} ${commitId}`);
 
     renameSync(logFile, friendlyFile);
     ensureDirSync(`./logs/${projectName}`);
     copyFileSync(
       friendlyFile,
-      `./logs/${projectName}/${dayjs().format(
-        "MM-DDTHH:mm"
-      )}.${applicationId}.${env}.${commitId}.log`
+      resolve(
+        cwd,
+        `./logs/${projectName}/${dayjs().format(
+          "MM-DD HH:mm"
+        )}.${applicationId}.${env}.${commitId}.log`
+      )
     );
     return true;
   } catch (error) {
