@@ -36,8 +36,8 @@ async function prepareEnv(
       autoVersionCode !== undefined ? autoVersionCode : env === "production";
 
     const newVersionCode = shouldIncrementVersionCode
-      ? String(Number(envContent["EXPO_PUBLIC_VERSION_CODE"]) + 1)
-      : envContent["EXPO_PUBLIC_VERSION_CODE"];
+      ? String(Number(versionCode) + 1)
+      : versionCode;
 
     let newVersionName;
 
