@@ -12,3 +12,5 @@ log
 
 config.ts
 .DS_Store
+
+logs
