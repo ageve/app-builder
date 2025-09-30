@@ -24,9 +24,10 @@ import prepareDependencies from "../../v2/tasks/prepareDependencies";
 import createPrepareEnv from "../../v2/tasks/prepareEnv";
 import prepareVar from "../../v2/tasks/prepareVar";
 import renameLog from "../../v2/tasks/renameLog";
+import createUploadAppStore from "../../v2/tasks/uploadAppStore";
 import createUploadFir from "../../v2/tasks/uploadFir";
 import createUploadPgyer from "../../v2/tasks/uploadPgyer";
-import { Task } from "../../v2/types";
+import { Platform, Task } from "../../v2/types";
 
 const androidPackages = ["qin", "hookAi"]; // 包名
 const applications = ["android", "iOS"]; // 系统
@@ -121,6 +122,13 @@ async function buildPipeline({
         `.env.${packageAlias}.xcconfig`
       );
 
+      // iOS 平台
+      const exportOptionsPath = resolve(
+        cwd(),
+        "./envs/hugo-aiv-app",
+        `${packageAlias}.ExportOptions.plist`
+      );
+
       const autoVersionCode = env === "production" || args.autoVersionCode;
       const legacyVersioning = args.legacyVersioning || false;
 
@@ -143,7 +151,16 @@ async function buildPipeline({
               createBuildAndroid({ clean: true }),
               copyToFileBrowser,
             ]
-          : [createBuildIOS()]; // iOS 如何让 env 有效
+          : [
+              createBuildIOS({
+                projectName: "kuaivideo",
+                schema: "kuaivideo",
+                buildType: "Release",
+                exportOptionsPath,
+                distributions:
+                  env === "alpha" ? ["adHoc"] : ["adHoc", "appStore"],
+              }),
+            ]; // iOS 如何让 env 有效
 
       const tasks: Task[] = [
         prepareCode,
@@ -156,14 +173,24 @@ async function buildPipeline({
         ...buildTasks,
       ];
 
-      if (platform === "android") {
-        // 测试环境包上传 fir
-        if (env === "alpha" && config?.fir?.apiKey) {
-          tasks.push(createUploadFir(config.fir.apiKey, "android"));
-        }
+      // 测试环境包上传 fir
+      if (env === "alpha" && config?.fir?.apiKey) {
+        tasks.push(createUploadFir(config.fir.apiKey, platform as Platform));
+      }
 
-        if (env === "production" && config?.pgyer?.apiKey) {
-          tasks.push(createUploadPgyer(config!.pgyer));
+      if (env === "production" && config?.pgyer?.apiKey) {
+        tasks.push(createUploadPgyer(config!.pgyer, platform as Platform));
+      }
+      if (env === "production" && platform === "ios") {
+        if (config.appStore) {
+          tasks.push(
+            createUploadAppStore({
+              user: config.appStore.user,
+              password: config.appStore.password,
+            })
+          );
+        } else {
+          log.error("miss upload appStore config");
         }
       }
 

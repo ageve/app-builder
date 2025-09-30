@@ -4,7 +4,6 @@ import { FetchTokenParams, FirTokenResult, UploadFirParams } from "../types";
 import fetch, { FormData, fileFromSync } from "node-fetch";
 // import { version } from "os";
 // import { resolve } from "path";
-import { $ } from "zx/core";
 
 export async function getToken(
   params: FetchTokenParams
@@ -84,10 +83,11 @@ export async function uploadByCurl(params: UploadFirParams) {
        -F "x:name=${appName}"             \
        -F "x:version=${versionName}"         \
        -F "x:build=${versionCode}"               \
+       -F "x:release_type=Adhoc"         \
        ${url}
-    `
+    `;
     console.log(command);
-    exec(command)
+    exec(command);
 
     return true;
   } catch (error) {

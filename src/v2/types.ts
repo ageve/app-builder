@@ -45,3 +45,5 @@ export type UploadPgyerData = {
   productFile: string;
   filename?: string;
 };
+
+export type Distribution = "adHoc" | "appStore";

@@ -1,15 +1,24 @@
+import { log } from "@clack/prompts";
 import { Platform } from "../types";
 import { setTaskName } from "../utils/common";
 import { getToken, uploadByCurl } from "../utils/fir";
 async function uploadFir(context: any, apiToken: string, platform: Platform) {
   try {
-    const { buildAndroid, prepareEnv } = context;
+    const { buildAndroid, prepareEnv, buildIOS } = context;
     const { productFiles } = buildAndroid;
+    const { ipaFiles } = buildIOS;
     const { applicationId, appName, versionCode, versionName } = prepareEnv;
-    const target = (productFiles as string[]).find((it) =>
-      it.includes("universal")
-    );
-    if (!target) return false;
+    let file: string | undefined = "";
+    if (platform === "android") {
+      file = (productFiles as string[]).find((it) => it.includes("universal"));
+    }
+    if (platform === "iOS") {
+      file = ipaFiles.adHoc;
+    }
+    if (!file) {
+      log.error(`miss output file`);
+      return false;
+    }
     const uploadWithToken = await getToken({
       apiToken,
       platform,
@@ -21,7 +30,7 @@ async function uploadFir(context: any, apiToken: string, platform: Platform) {
       appName: appName,
       versionCode: versionCode,
       versionName: versionName,
-      filepath: target,
+      filepath: file,
     });
     return true;
   } catch (error) {

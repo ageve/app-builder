@@ -5,10 +5,13 @@
   "cSpell.words": [
     "agconnect",
     "codemod",
+    "ENVFILE",
     "gradlew",
     "orden",
     "Pgyer",
-    "Qiniu"
+    "Qiniu",
+    "xcpretty",
+    "xcworkspace"
   ],
   "files.exclude": {
     "**/.git": true,
