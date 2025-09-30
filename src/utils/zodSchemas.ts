@@ -35,7 +35,7 @@ export const configSchema = z.object({
     })
     .optional(),
 
-  appStore: z.object({ user: z.string(), password: z.string() }).optional(),
+  appStore: z.object({ keychain: z.string() }).optional(),
 });
 
 export type Config = z.infer<typeof configSchema>;

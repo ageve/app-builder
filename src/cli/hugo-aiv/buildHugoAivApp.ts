@@ -185,8 +185,7 @@ async function buildPipeline({
         if (config.appStore) {
           tasks.push(
             createUploadAppStore({
-              user: config.appStore.user,
-              password: config.appStore.password,
+              keychain: config.appStore.keychain,
             })
           );
         } else {

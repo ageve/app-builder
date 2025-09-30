@@ -2,15 +2,14 @@ import { log } from "@clack/prompts";
 import { $ } from "zx";
 import { setTaskName } from "../utils/common";
 type Options = {
-  user: string;
-  password: string;
+  keychain: string;
 };
 async function uploadAppStore(context: any, options: Options) {
   try {
     const { buildIOS } = context;
     const { ipaFiles } = buildIOS;
-    const { user, password } = options;
-    await $`xcrun altool --upload-app -f ${ipaFiles.appStore} -u ${user} -p ${password} --verbose`;
+    const { keychain } = options;
+    await $`xcrun notarytool submit ${ipaFiles.appStore} --keychain-profile ${keychain} --wait`;
     return true;
   } catch (error) {
     log.error("上传 appStore 失败");
