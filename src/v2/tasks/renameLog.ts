@@ -15,7 +15,7 @@ async function renameLog(context: any, external = "") {
     // );
 
     const logoInfo = [packageAlias, env, commitId, external]
-      .filter((it) => !it)
+      .filter((it) => it)
       .join(".");
 
     log.info(`${logFile} ${logoInfo}`);
