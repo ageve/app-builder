@@ -40,7 +40,7 @@ async function buildIOS(context: any, options: Options) {
     }
 
     // archive app
-    await $`xcodebuild archive -workspace ${projectName}.xcworkspace -scheme ${schema} -configuration ${buildType} -archivePath build/${schema} -quiet`;
+    await $`xcodebuild archive -workspace ${projectName}.xcworkspace -scheme ${schema} -configuration ${buildType} -disableAutomaticPackageResolution -destination generic/platform=ios -archivePath build/${schema} -quiet | xcpretty`;
 
     const ipaFiles: Record<Distribution, string> = { adHoc: "", appStore: "" };
 
@@ -48,7 +48,7 @@ async function buildIOS(context: any, options: Options) {
       log.info(`Export ipa for ${distribution}`);
       const ipaPath = `${output}/${applicationId}_${env}_${versionName}_${distribution}`;
 
-      await $`xcodebuild -exportArchive -archivePath build/${schema} -exportPath ${ipaPath} -exportOptionsPlist ${exportOptionsPath} -quiet`;
+      await $`xcodebuild -exportArchive -archivePath build/${schema} -exportPath ${ipaPath} -exportOptionsPlist ${exportOptionsPath} -quiet | xcpretty`;
 
       ipaFiles[distribution] = ipaPath;
     }
