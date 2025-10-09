@@ -1,6 +1,7 @@
 import { exec } from "child_process";
 import { FetchTokenParams, FirTokenResult, UploadFirParams } from "../types";
 // import FormData from "form-data";
+import { log } from "@clack/prompts";
 import fetch, { FormData, fileFromSync } from "node-fetch";
 // import { version } from "os";
 // import { resolve } from "path";
@@ -9,15 +10,21 @@ export async function getToken(
   params: FetchTokenParams
 ): Promise<FirTokenResult> {
   const { apiToken, platform, packageName } = params;
+  const body = JSON.stringify({
+    type: platform,
+    bundle_id: packageName,
+    api_token: apiToken,
+  });
+  log.info(body);
   const result = await fetch("http://api.bq04.com/apps", {
     method: "POST",
-    body: JSON.stringify({
-      type: platform,
-      bundle_id: packageName,
-      api_token: apiToken,
-    }),
+    body,
     headers: { "Content-Type": "application/json" },
-  }).then((resp) => resp.json());
+  })
+    .then((resp) => resp.json())
+    .catch((error) => {
+      log.error(error);
+    });
   const binary = (
     result as {
       cert: { binary: { upload_url: string; key: string; token: string } };
