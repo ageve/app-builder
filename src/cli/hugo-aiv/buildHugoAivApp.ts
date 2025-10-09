@@ -159,6 +159,7 @@ async function buildPipeline({
                 schema: "kuaivideo",
                 buildType: "Release",
                 exportOptionsPath,
+                ipaName: "AIdev",
                 distributions:
                   env === "alpha" ? ["adHoc"] : ["adHoc", "appStore"],
               }),

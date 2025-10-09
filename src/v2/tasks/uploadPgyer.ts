@@ -9,16 +9,14 @@ export async function uploadPgyerTask(
   platform: Platform
 ) {
   try {
-    const { buildAndroid, buildIOS } = context;
-    const { productFiles } = buildAndroid;
-    const { ipaFiles } = buildIOS;
-
     let file: string | undefined = "";
 
     if (platform === "android") {
+      const { productFiles } = context.buildAndroid;
       file = (productFiles as string[]).find((it) => it.includes("universal"));
     }
     if (platform === "iOS") {
+      const { ipaFiles } = context.buildIOS;
       file = ipaFiles.adHoc;
     }
     if (!file) {

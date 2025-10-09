@@ -10,6 +10,7 @@ type Options = {
   buildType: string;
   exportOptionsPath: string;
   distributions: Distribution[];
+  ipaName: string;
   clean?: boolean;
 };
 async function buildIOS(context: any, options: Options) {
@@ -22,6 +23,7 @@ async function buildIOS(context: any, options: Options) {
       buildType,
       exportOptionsPath,
       distributions,
+      ipaName,
       clean = false,
     } = options;
     cd(resolve(workspace, "./ios"));
@@ -50,8 +52,10 @@ async function buildIOS(context: any, options: Options) {
 
       await $`xcodebuild -exportArchive -archivePath build/${schema}.xcarchive -exportPath ${ipaPath} -exportOptionsPlist ${exportOptionsPath} -quiet | xcpretty`;
 
-      ipaFiles[distribution] = ipaPath;
+      ipaFiles[distribution] = `${ipaPath}/${ipaName}.ipa"`;
     }
+
+    log.info(JSON.stringify(ipaFiles));
 
     return {
       // ipaFile: `${ipaPath}/${schema}.ipa`,
