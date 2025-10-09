@@ -16,7 +16,7 @@ export async function getToken(
     api_token: apiToken,
   });
   log.info(body);
-  const result = await fetch("http://api.bq04.com/apps", {
+  const result = await fetch("http://api.appmeta.cn/apps", {
     method: "POST",
     body,
     headers: { "Content-Type": "application/json" },
