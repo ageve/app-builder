@@ -193,7 +193,7 @@ async function buildPipeline({
         }
       }
 
-      tasks.push(renameLog);
+      tasks.push(renameLog({ external: platform.toLowerCase() }));
 
       log.info("[Tasks] " + tasks.map((item) => item.name).join(" "));
 
