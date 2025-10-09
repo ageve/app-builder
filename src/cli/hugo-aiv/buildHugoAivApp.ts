@@ -126,7 +126,7 @@ async function buildPipeline({
       const exportOptionsPath = resolve(
         cwd(),
         "./envs/hugo-aiv-app",
-        `${packageAlias}.ExportOptions${
+        `${packageAlias}.ExportOptions.${
           env === "alpha" ? "adHoc" : "appstore"
         }.plist`
       );
