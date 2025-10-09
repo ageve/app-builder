@@ -11,7 +11,7 @@ export async function getToken(
 ): Promise<FirTokenResult> {
   const { apiToken, platform, packageName } = params;
   const body = JSON.stringify({
-    type: platform,
+    type: platform.toLowerCase(),
     bundle_id: packageName,
     api_token: apiToken,
   });
