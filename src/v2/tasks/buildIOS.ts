@@ -48,7 +48,7 @@ async function buildIOS(context: any, options: Options) {
       log.info(`Export ipa for ${distribution}`);
       const ipaPath = `${output}/${applicationId}_${env}_${versionName}_${distribution}`;
 
-      await $`xcodebuild -exportArchive -archivePath build/${schema} -exportPath ${ipaPath} -exportOptionsPlist ${exportOptionsPath} -quiet | xcpretty`;
+      await $`xcodebuild -exportArchive -archivePath build/${schema}.xcarchive -exportPath ${ipaPath} -exportOptionsPlist ${exportOptionsPath} -quiet | xcpretty`;
 
       ipaFiles[distribution] = ipaPath;
     }
