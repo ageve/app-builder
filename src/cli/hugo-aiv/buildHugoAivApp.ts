@@ -158,7 +158,18 @@ async function buildPipeline({
                 projectName: "kuaivideo",
                 schema: "kuaivideo",
                 buildType: "Release",
-                exportOptionsPath,
+                exportOptionsPath: {
+                  adHoc: resolve(
+                    cwd(),
+                    "./envs/hugo-aiv-app",
+                    `${packageAlias}.ExportOptions.adHoc.plist`
+                  ),
+                  appStore: resolve(
+                    cwd(),
+                    "./envs/hugo-aiv-app",
+                    `${packageAlias}.ExportOptions.appstore.plist`
+                  ),
+                },
                 ipaName: "AIdev",
                 distributions:
                   env === "alpha" ? ["adHoc"] : ["adHoc", "appStore"],

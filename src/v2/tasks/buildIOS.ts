@@ -8,7 +8,7 @@ type Options = {
   projectName: string;
   schema: string;
   buildType: string;
-  exportOptionsPath: string;
+  exportOptionsPath: Record<Distribution, string>;
   distributions: Distribution[];
   ipaName: string;
   clean?: boolean;
@@ -47,10 +47,12 @@ async function buildIOS(context: any, options: Options) {
     const ipaFiles: Record<Distribution, string> = { adHoc: "", appStore: "" };
 
     for (let distribution of distributions) {
-      log.info(`Export ipa for ${distribution}`);
+      log.info(
+        `Export ipa for ${distribution} ${exportOptionsPath[distribution]}`
+      );
       const ipaPath = `${output}/${applicationId}_${env}_${versionName}_${distribution}`;
 
-      await $`xcodebuild -exportArchive -archivePath build/${schema}.xcarchive -exportPath ${ipaPath} -exportOptionsPlist ${exportOptionsPath} -quiet | xcpretty`;
+      await $`xcodebuild -exportArchive -archivePath build/${schema}.xcarchive -exportPath ${ipaPath} -exportOptionsPlist ${exportOptionsPath[distribution]} -quiet | xcpretty`;
 
       ipaFiles[distribution] = `${ipaPath}/${ipaName}.ipa"`;
     }
