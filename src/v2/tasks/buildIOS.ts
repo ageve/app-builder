@@ -56,7 +56,7 @@ async function buildIOS(context: any, options: Options) {
     }
 
     log.info(JSON.stringify(ipaFiles));
-
+    logger.info(ipaFiles);
     return {
       // ipaFile: `${ipaPath}/${schema}.ipa`,
       ipaFiles,

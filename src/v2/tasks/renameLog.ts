@@ -1,7 +1,9 @@
 import { log } from "@clack/prompts";
 import dayjs from "dayjs";
 import { copyFileSync, ensureDirSync } from "fs-extra";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+
 import { setTaskName } from "../utils/common";
 async function renameLog(context: any, external = "") {
   // 检查文件夹是否存在，否创建
@@ -22,13 +24,18 @@ async function renameLog(context: any, external = "") {
 
     ensureDirSync(resolve(cwd, `./logs/${projectName}`));
 
-    copyFileSync(
-      logFile,
-      resolve(
-        cwd,
-        `./logs/${projectName}/${dayjs().format("MM-DD HH:mm")}.${logoInfo}.log`
-      )
-    );
+    if (existsSync(logFile)) {
+      copyFileSync(
+        logFile,
+        resolve(
+          cwd,
+          `./logs/${projectName}/${dayjs().format(
+            "MM-DD HH:mm"
+          )}.${logoInfo}.log`
+        )
+      );
+    }
+
     return true;
   } catch (error) {
     console.log("rename log error", error);
