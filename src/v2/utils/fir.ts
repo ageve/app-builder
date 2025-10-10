@@ -11,11 +11,12 @@ export async function getToken(
 ): Promise<FirTokenResult> {
   const { apiToken, platform, packageName } = params;
   const body = JSON.stringify({
-    type: platform.toLowerCase(),
+    type: platform.toLowerCase().trim(),
     bundle_id: packageName,
     api_token: apiToken,
   });
   log.info(body);
+  log.info(JSON.stringify(body));
   const result = await fetch("http://api.appmeta.cn/apps", {
     method: "POST",
     body,

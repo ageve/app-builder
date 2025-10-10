@@ -16,9 +16,9 @@ async function renameLog(context: any, external = "") {
     //   `./build/${projectName}/${applicationId}.${env}.${commitId}.log`
     // );
 
-    const logoInfo = [packageAlias, env, commitId, external]
+    const logoInfo = [packageAlias, env, external, commitId]
       .filter((it) => it)
-      .join(".");
+      .join("_");
 
     log.info(`${logFile} ${logoInfo}`);
 
@@ -29,9 +29,9 @@ async function renameLog(context: any, external = "") {
         logFile,
         resolve(
           cwd,
-          `./logs/${projectName}/${dayjs().format(
+          `./logs/${projectName}/${logoInfo}.${dayjs().format(
             "MM-DD HH:mm"
-          )}.${logoInfo}.log`
+          )}.log`
         )
       );
     }
