@@ -2,10 +2,14 @@ import { log } from "@clack/prompts";
 import { Platform } from "../types";
 import { setTaskName } from "../utils/common";
 import { getToken, uploadByCurl } from "../utils/fir";
-async function uploadFir(context: any, apiToken: string, platform: Platform) {
+async function uploadFir(
+  context: any,
+  options: { apiToken: string; platform: Platform; customAppName?: string }
+) {
   try {
     const { prepareEnv } = context;
     const { applicationId, appName, versionCode, versionName } = prepareEnv;
+    const { platform, apiToken, customAppName } = options;
     let file: string | undefined = "";
     if (platform === "android") {
       const { productFiles } = context.buildAndroid;
@@ -27,7 +31,7 @@ async function uploadFir(context: any, apiToken: string, platform: Platform) {
     await uploadByCurl({
       ...uploadWithToken,
       platform,
-      appName: appName,
+      appName: customAppName || appName,
       versionCode: versionCode,
       versionName: versionName,
       filepath: file,
@@ -39,8 +43,13 @@ async function uploadFir(context: any, apiToken: string, platform: Platform) {
   return false;
 }
 
-export default function createUploadFir(apiToken: string, platform: Platform) {
-  const task = (context: any) => uploadFir(context, apiToken, platform);
+export default function createUploadFir(
+  apiToken: string,
+  platform: Platform,
+  customAppName?: string
+) {
+  const task = (context: any) =>
+    uploadFir(context, { apiToken, platform, customAppName });
   setTaskName("uploadFir", task);
   return task;
 }

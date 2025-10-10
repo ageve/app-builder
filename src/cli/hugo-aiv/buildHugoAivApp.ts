@@ -178,13 +178,19 @@ async function buildPipeline({
 
       // 测试环境包上传 fir
       if (env === "alpha" && config?.fir?.apiKey) {
-        tasks.push(createUploadFir(config.fir.apiKey, platform as Platform));
+        tasks.push(
+          createUploadFir(
+            config.fir.apiKey,
+            platform as Platform,
+            platform === "iOS" ? "钩子AI" : ""
+          )
+        );
       }
 
       if (env === "production" && config?.pgyer?.apiKey) {
         tasks.push(createUploadPgyer(config!.pgyer, platform as Platform));
       }
-      if (env === "production" && platform === "ios") {
+      if (env === "production" && platform === "iOS") {
         if (config.appStore) {
           tasks.push(
             createUploadAppStore({
