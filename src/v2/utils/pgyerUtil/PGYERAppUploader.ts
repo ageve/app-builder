@@ -1,6 +1,9 @@
+import { log } from "@clack/prompts";
+import axios from 'axios';
 import FormData from "form-data";
 import fs from "fs";
 import https from "https";
+import path from 'path';
 import querystring from "querystring";
 
 export interface UploadOptions {
@@ -156,6 +159,8 @@ export class PGYERAppUploader {
     }
 
     const uploadForm = new FormData();
+    log.info(JSON.stringify(uploadData.data,null,2))
+    log.info(JSON.stringify(uploadOptions,null,2))
     uploadForm.append("signature", uploadData.data.params.signature);
     uploadForm.append(
       "x-cos-security-token",
@@ -164,27 +169,34 @@ export class PGYERAppUploader {
     uploadForm.append("key", uploadData.data.params.key);
     uploadForm.append(
       "x-cos-meta-file-name",
-      uploadOptions.filePath.replace(/^.*[\\/]/, "")
+      path.basename(uploadOptions.filePath)
     );
     uploadForm.append("file", fs.createReadStream(uploadOptions.filePath));
+    axios.post(uploadData.data.endpoint, uploadForm, {
+      headers: uploadForm.getHeaders(),
+      maxBodyLength: Infinity
+    }).then((res)=>{
+      console.log(res.headers, res.status, res.statusText)
+    }).catch((error)=>{
+      console.log('[error]',error.message)
+    })
+    // uploadForm.submit(uploadData.data.endpoint, (err, res) => {
+    //   if (err) {
+    //     callback(err);
+    //     return;
+    //   }
 
-    uploadForm.submit(uploadData.data.endpoint, (err, res) => {
-      if (err) {
-        callback(err);
-        return;
-      }
-
-      if (res?.statusCode === 204) {
-        setTimeout(
-          () => this._getUploadResult(uploadOptions, uploadData, callback),
-          1000
-        );
-      } else {
-        callback(
-          new Error(`${this.LOG_TAG} Upload Error! Status ${res?.statusCode}`)
-        );
-      }
-    });
+    //   if (res?.statusCode === 204) {
+    //     setTimeout(
+    //       () => this._getUploadResult(uploadOptions, uploadData, callback),
+    //       1000
+    //     );
+    //   } else {
+    //     callback(
+    //       new Error(`${this.LOG_TAG} Upload Error! Status ${res?.statusCode} ${res?.statusMessage}`)
+    //     );
+    //   }
+    // });
   }
 
   /**
