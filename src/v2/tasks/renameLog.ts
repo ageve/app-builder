@@ -10,11 +10,7 @@ async function renameLog(context: any, external = "") {
   try {
     const { logFile, projectName, prepareEnv, variables, env, cwd } = context;
     const { commitId } = variables;
-    const { applicationId, packageAlias } = prepareEnv;
-    // const friendlyFile = resolve(
-    //   cwd,
-    //   `./build/${projectName}/${applicationId}.${env}.${commitId}.log`
-    // );
+    const { packageAlias } = prepareEnv;
 
     const logoInfo = [packageAlias, env, external, commitId]
       .filter((it) => it)
@@ -29,9 +25,7 @@ async function renameLog(context: any, external = "") {
         logFile,
         resolve(
           cwd,
-          `./logs/${projectName}/${logoInfo}.${dayjs().format(
-            "MM-DD HH:mm"
-          )}.log`
+          `./logs/${projectName}/${logoInfo}.${dayjs().format("MMDDHHmm")}.log`
         )
       );
     }
