@@ -54,7 +54,7 @@ async function buildIOS(context: any, options: Options) {
 
       await $`xcodebuild -exportArchive -archivePath build/${schema}.xcarchive -exportPath ${ipaPath} -exportOptionsPlist ${exportOptionsPath[distribution]} -quiet | xcpretty`;
 
-      ipaFiles[distribution] = `${ipaPath}/${ipaName}.ipa"`;
+      ipaFiles[distribution] = `${ipaPath}/${ipaName}.ipa`;
     }
 
     log.info(JSON.stringify(ipaFiles));
