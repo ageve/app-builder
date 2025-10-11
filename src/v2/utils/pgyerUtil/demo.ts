@@ -1,14 +1,12 @@
 import { PGYERAppUploader } from "./PGYERAppUploader"; // 若使用 .ts，请改为 './PGYERAppUploader'
 
-const uploader = new PGYERAppUploader("<your_api_key>");
+const uploader = new PGYERAppUploader("");
 
 async function main() {
   try {
     const result = await uploader.upload({
-      filePath: "./app.apk",
+      filePath: "",
       log: true,
-      buildInstallType: 2,
-      buildPassword: "123456",
     });
 
     console.log("✅ 上传成功:", result);
