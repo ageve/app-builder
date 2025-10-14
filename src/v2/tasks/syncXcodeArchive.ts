@@ -49,9 +49,9 @@ async function syncArchive(context: any, options: Options) {
     // 复制 archive 文件
     log.info(`源文件: ${archiveFile} => 目标路径: ${targetArchivePath}`);
 
-    cpSync(archiveFile, targetArchivePath);
+    cpSync(archiveFile, targetArchivePath, { recursive: true });
 
-    log.success(`Archive 已同步到 Xcode Organizer`);
+    log.success(`✓ Archive 已同步到 Xcode Organizer`);
     log.info(`可以在 Xcode -> Window -> Organizer 中查看`);
 
     return true;
