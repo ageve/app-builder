@@ -24,6 +24,7 @@ import prepareDependencies from "../../v2/tasks/prepareDependencies";
 import createPrepareEnv from "../../v2/tasks/prepareEnv";
 import prepareVar from "../../v2/tasks/prepareVar";
 import renameLog from "../../v2/tasks/renameLog";
+import createSyncArchive from "../../v2/tasks/syncXcodeArchive";
 import createUploadAppStore from "../../v2/tasks/uploadAppStore";
 import createUploadFir from "../../v2/tasks/uploadFir";
 import createUploadPgyer from "../../v2/tasks/uploadPgyer";
@@ -202,6 +203,7 @@ async function buildPipeline({
         tasks.push(createUploadPgyer(config!.pgyer, platform as Platform));
       }
       if (env === "production" && platform === "iOS") {
+        tasks.push(createSyncArchive({ schema: "kuaivideo" }));
         if (config.appStore) {
           tasks.push(
             createUploadAppStore({
@@ -209,13 +211,15 @@ async function buildPipeline({
             })
           );
         } else {
-          log.error("miss upload appStore config");
+          log.error("[buildPipeline] miss upload appStore config");
         }
       }
 
       tasks.push(renameLog({ external: platform.toLowerCase().trim() }));
 
-      log.info("[Tasks] " + tasks.map((item) => item.name).join(" "));
+      log.info(
+        "[buildPipeline]tasks " + tasks.map((item) => item.name).join(" ")
+      );
 
       // 本地使用额外处理: 请确认本地项目路径和构建脚本的路径
       const pipeline = new Pipeline(

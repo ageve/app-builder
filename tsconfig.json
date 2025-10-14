@@ -13,13 +13,17 @@
     "strict": true,
     "sourceMap": false,
     "skipLibCheck": true,
-    "outDir": "./dist"
-    //    "baseUrl": "./",
-    //    "paths": {
-    //      "@/*": ["./src/*"]
-    //    }
+    "outDir": "./dist",
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ]
+    }
   },
-  "exclude": ["node_modules", "projects"],
+  "exclude": [
+    "node_modules",
+    "projects"
+  ],
   "ts-node": {
     "files": true
   }

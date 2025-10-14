@@ -57,12 +57,14 @@ async function buildIOS(context: any, options: Options) {
       ipaFiles[distribution] = `${ipaPath}/${ipaName}.ipa`;
     }
 
-    log.info(JSON.stringify(ipaFiles));
-    logger.info(ipaFiles);
-    return {
-      // ipaFile: `${ipaPath}/${schema}.ipa`,
+    const result = {
+      archiveFile: resolve(workspace, `./ios/build/${schema}.xcarchive`),
       ipaFiles,
     };
+
+    log.info(JSON.stringify(result));
+    logger.info(result);
+    return result;
   } catch (error) {
     console.log(error);
   }
