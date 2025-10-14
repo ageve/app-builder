@@ -17,7 +17,7 @@ export async function uploadPgyer({
 
     await new Promise((resolve, reject) => {
       execFile(
-        path.resolve(__dirname, "../pgyerUtil/pgyer_upload.sh"),
+        path.resolve(__dirname, "./pgyerUtil/pgyer_upload.sh"),
         ["-k", apiKey, productFile],
         {},
         (error, stdout, stderr) => {
