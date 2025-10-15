@@ -25,7 +25,6 @@ import createPrepareEnv from "../../v2/tasks/prepareEnv";
 import prepareVar from "../../v2/tasks/prepareVar";
 import renameLog from "../../v2/tasks/renameLog";
 import createSyncArchive from "../../v2/tasks/syncXcodeArchive";
-import createUploadAppStore from "../../v2/tasks/uploadAppStore";
 import createUploadFir from "../../v2/tasks/uploadFir";
 import createUploadPgyer from "../../v2/tasks/uploadPgyer";
 import { Platform, Task } from "../../v2/types";
@@ -205,11 +204,11 @@ async function buildPipeline({
       if (env === "production" && platform === "iOS") {
         tasks.push(createSyncArchive({ schema: "kuaivideo" }));
         if (config.appStore) {
-          tasks.push(
-            createUploadAppStore({
-              keychain: config.appStore.keychain,
-            })
-          );
+          // tasks.push(
+          //   createUploadAppStore({
+          //     keychain: config.appStore.keychain,
+          //   })
+          // );
         } else {
           log.error("[buildPipeline] miss upload appStore config");
         }
