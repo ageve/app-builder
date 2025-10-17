@@ -1,3 +1,4 @@
+import createUploadAppStore from "@/v2/tasks/uploadAppStore";
 import { cancel, isCancel, log, multiselect } from "@clack/prompts";
 import path, { resolve } from "node:path";
 import { cwd } from "node:process";
@@ -204,11 +205,11 @@ async function buildPipeline({
       if (env === "production" && platform === "iOS") {
         tasks.push(createSyncArchive({ schema: "kuaivideo" }));
         if (config.appStore) {
-          // tasks.push(
-          //   createUploadAppStore({
-          //     keychain: config.appStore.keychain,
-          //   })
-          // );
+          tasks.push(
+            createUploadAppStore({
+              keychain: config.appStore.keychain,
+            })
+          );
         } else {
           log.error("[buildPipeline] miss upload appStore config");
         }
