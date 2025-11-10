@@ -155,8 +155,8 @@ async function buildPipeline({
             ]
           : [
               createBuildIOS({
-                projectName: "aiv",
-                schema: "aiv",
+                projectName: "kuaivideo",
+                schema: "kuaivideo",
                 buildType: "Release",
                 exportOptionsPath: {
                   adHoc: resolve(
@@ -202,7 +202,7 @@ async function buildPipeline({
         tasks.push(createUploadPgyer(config!.pgyer, platform as Platform));
       }
       if (env === "production" && platform === "iOS") {
-        tasks.push(createSyncArchive({ schema: "aiv" }));
+        tasks.push(createSyncArchive({ schema: "kuaivideo" }));
         if (config.appStore) {
           // tasks.push(
           //   createUploadAppStore({
