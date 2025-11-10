@@ -52,7 +52,7 @@ async function buildIOS(context: any, options: Options) {
       );
       const ipaPath = `${output}/${applicationId}_${env}_${versionName}_${distribution}`;
 
-      await $`xcodebuild -exportArchive -archivePath build/${schema}.xcarchive -exportPath ${ipaPath} -exportOptionsPlist ${exportOptionsPath[distribution]} -quiet | xcpretty`;
+      await $`xcodebuild -exportArchive -archivePath build/${schema}.xcarchive -exportPath ${ipaPath} -exportOptionsPlist ${exportOptionsPath[distribution]} -allowProvisioningUpdates -allowProvisioningDeviceRegistration -quiet | xcpretty`;
 
       ipaFiles[distribution] = `${ipaPath}/${ipaName}.ipa`;
     }
