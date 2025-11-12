@@ -34,11 +34,12 @@ export const configSchema = z.object({
       prod: z.string(),
     })
     .optional(),
-
+  appInfo: z.object({ name: z.string, slogan: z.string() }).optional(),
   appStore: z.object({ keychain: z.string() }).optional(),
 });
 
 export type Config = z.infer<typeof configSchema>;
+export const buildConfig = (c: Config) => c;
 
 export const argsSchema = z.object({
   autoVersionCode: z.boolean().optional(),

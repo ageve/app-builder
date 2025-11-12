@@ -1,5 +1,6 @@
 import { resolve } from "path";
 import { cwd } from "process";
+import config from "./config.global";
 import Pipeline from "./pipeline";
 import { pipelineRun } from "./pipelineRun";
 import createPrepareEnv from "./tasks/prepareEnv";
@@ -8,6 +9,7 @@ const uiLibRelease = new Pipeline(
   {
     gitUri: "git@github.com:darshanpawar101/Coffee-Shop-App.git",
     branch: "main",
+    config: config,
   },
   // UPDATE: 用 serial 或 parallel 组合 tasks
   [

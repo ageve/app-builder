@@ -56,6 +56,7 @@ bun run src/cli/main.ts
 ### 版本号格式 (Version Code)
 
 版本号是从语义化版本生成的纯数字：
+
 - **格式**: `major * 1000000 + minor * 1000 + patch`
 - **范围**: 各组件支持 0-999
 - **示例**:
@@ -66,6 +67,7 @@ bun run src/cli/main.ts
 ### 版本名格式 (Version Name)
 
 版本名结合语义化版本和构建号：
+
 - **格式**: `{major}.{minor}.{patch}.{buildNumber}`
 - **构建号**: 来自 git 提交数量
 - **示例**:
@@ -77,11 +79,13 @@ bun run src/cli/main.ts
 系统通过向后兼容支持旧项目：
 
 #### 传统模式（向后兼容）
+
 - 如果 `.env` 文件中存在 `EXPO_PUBLIC_VERSION_NAME`，将直接使用该值
 - 不进行自动版本生成
 - 保持旧项目的现有行为
 
 #### 新模式（自动生成）
+
 - 如果 `EXPO_PUBLIC_VERSION_NAME` 缺失或为空，自动生成版本名
 - 使用新格式：`{major}.{minor}.{patch}.{commitCount}`
 - 提供一致、可预测的版本管理

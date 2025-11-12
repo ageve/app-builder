@@ -1,3 +1,4 @@
+import { log } from "@clack/prompts";
 import fetch from "node-fetch";
 import path from "path";
 import qiniu from "qiniu";
@@ -5,20 +6,24 @@ import builderConfig from "../config.global";
 import { setTaskName } from "../utils/common";
 const config = new qiniu.conf.Config();
 
-export default async function uploadQiniu(context: any) {
+export default async function uploadQiniu(
+  context: any,
+  options?: { key: string }
+) {
   try {
-    const { buildAndroid, prepareEnv, logger } = context;
+    const { buildAndroid, prepareEnv, logger, env } = context;
     const { productFiles } = buildAndroid;
-    const { ENV_TYPE } = prepareEnv;
+    const { versionName } = prepareEnv;
     const target = (productFiles as string[]).find((it) =>
       it.includes("universal")
     );
     if (!target) return false;
     // get uploadToken
     const url =
-      ENV_TYPE === "alpha"
-        ? builderConfig.uploadApi.alpha
-        : builderConfig.uploadApi.prod;
+      env === "alpha"
+        ? builderConfig.uploadApi?.alpha
+        : builderConfig.uploadApi?.prod;
+    if (!url) throw new Error("configGlobal missing uploadApi");
     const response = await fetch(url, {
       method: "POST",
       headers: {
@@ -39,7 +44,9 @@ export default async function uploadQiniu(context: any) {
 
     const formUploader = new qiniu.form_up.FormUploader(config);
     const putExtra = new qiniu.form_up.PutExtra();
-    const key = data.key;
+    const key = options?.key
+      ? options.key.replace("{versionName}", versionName)
+      : data.key;
     let uploadToken = data.token;
 
     const uploadRes = await new Promise((resolve, reject) => {
@@ -57,7 +64,6 @@ export default async function uploadQiniu(context: any) {
             console.log("upload success \n");
             logger.info(data.url);
             resolve(true);
-            console.log({ qiniuDownloadUrl: data.url });
           } else {
             console.warn("something wrong \n");
             console.log(respInfo.statusCode);
@@ -67,7 +73,7 @@ export default async function uploadQiniu(context: any) {
         }
       );
     });
-
+    log.success("[downloadUrl] " + data.url);
     if (uploadRes) {
       return { downloadUrl: data.url };
     }
@@ -76,5 +82,10 @@ export default async function uploadQiniu(context: any) {
   }
   return false;
 }
-
 setTaskName("uploadQiniu", uploadQiniu);
+
+export function createUploadQiniu(options?: { key: string }) {
+  const task = (context: any) => uploadQiniu(context, options);
+  setTaskName("uploadQiniu", task);
+  return task;
+}

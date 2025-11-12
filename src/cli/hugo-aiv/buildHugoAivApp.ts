@@ -1,3 +1,4 @@
+import { createUploadQiniu } from "@/v2/custom/uploadQiniu";
 import { cancel, isCancel, log, multiselect } from "@clack/prompts";
 import path, { resolve } from "node:path";
 import { cwd } from "node:process";
@@ -204,13 +205,20 @@ async function buildPipeline({
       if (env === "production" && platform === "iOS") {
         tasks.push(createSyncArchive({ schema: "kuaivideo" }));
         if (config.appStore) {
-          // tasks.push(
-          //   createUploadAppStore({
-          //     keychain: config.appStore.keychain,
-          //   })
-          // );
         } else {
           log.error("[buildPipeline] miss upload appStore config");
+        }
+      }
+
+      if (env === "production" && platform === "android") {
+        if (config.appInfo) {
+          tasks.push(
+            createUploadQiniu({
+              key: `res/apk/${config.appInfo.name}-${config.appInfo.slogan}_{versionName}.apk`,
+            })
+          );
+        } else {
+          throw new Error("config missing appInfo");
         }
       }
 

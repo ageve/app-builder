@@ -1,4 +1,6 @@
-const config = {
+import { buildConfig } from "./utils/zodSchemas";
+
+const config = buildConfig({
   gitUri: "xxx.git",
   pgyer: {
     apiKey: "xxx",
@@ -10,7 +12,6 @@ const config = {
   fir: { apiKey: "xxx" },
   uploadApi: { alpha: "", prod: "" },
   updateUrl: { alpha: "", prod: "" },
-  pkgManager: "bun", // yarn , npm ,pnpm
-};
+});
 
 export default config;
