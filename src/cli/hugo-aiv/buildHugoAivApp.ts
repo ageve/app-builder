@@ -214,7 +214,7 @@ async function buildPipeline({
         if (config.appInfo) {
           tasks.push(
             createUploadQiniu({
-              key: `res/apk/${config.appInfo.name}-${config.appInfo.slogan}_{versionName}.apk`,
+              key: `res/apk/{versionName}/${config.appInfo.name}-${config.appInfo.slogan}.apk`,
             })
           );
         } else {
