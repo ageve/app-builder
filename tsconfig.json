@@ -2,6 +2,10 @@
   "scripts": {
     "build": "tsc"
   },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx"
+  ],
   "compilerOptions": {
     "module": "commonjs",
     "allowSyntheticDefaultImports": true,
@@ -22,7 +26,10 @@
   },
   "exclude": [
     "node_modules",
-    "projects"
+    "projects",
+    "apps",
+    "dist",
+    "**/*.test.ts"
   ],
   "ts-node": {
     "files": true

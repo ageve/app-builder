@@ -1,0 +1,23 @@
+{
+  "id": "android-production-base",
+  "kind": "pipeline-template",
+  "pipeline": {
+    "platform": "android",
+    "env": "production",
+    "branch": "main"
+  },
+  "flags": {
+    "autoVersionCode": true,
+    "legacyVersioning": false,
+    "cleanWorkspace": true
+  },
+  "features": {
+    "codemodAndroid": true,
+    "copyToFileBrowser": false
+  },
+  "uploads": {
+    "fir": false,
+    "pgyer": true,
+    "qiniu": true
+  }
+}

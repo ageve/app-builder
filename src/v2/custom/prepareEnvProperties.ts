@@ -20,9 +20,9 @@ export async function prepareEnvProperties(
     Object.keys(envContent).forEach((key) => {
       const value = envContent[key];
       const newKey = key.replace("EXPO_PUBLIC_", "");
-      if (newKey in envPropertiesContent) {
-        envPropertiesContent[newKey] = value;
-      }
+      // if (newKey in envPropertiesContent) {
+      envPropertiesContent[newKey] = value;
+      // }
     });
 
     // Ensure latest version information is saved

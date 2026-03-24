@@ -11,6 +11,9 @@ async function uploadFir(
     const { applicationId, appName, versionCode, versionName } = prepareEnv;
     const { platform, apiToken, customAppName } = options;
     let file: string | undefined = "";
+    log.info(
+      `upload Fir.im,${platform} App. ${JSON.stringify(context.buildIOS)}`
+    );
     if (platform === "android") {
       const { productFiles } = context.buildAndroid;
       file = (productFiles as string[]).find((it) => it.includes("universal"));
@@ -19,7 +22,7 @@ async function uploadFir(
       const { ipaFiles } = context.buildIOS;
       file = ipaFiles.adHoc;
     }
-    if (!file) {
+    if (!Boolean(file)) {
       log.error(`miss output file`);
       return false;
     }
@@ -34,7 +37,7 @@ async function uploadFir(
       appName: customAppName || appName,
       versionCode: versionCode,
       versionName: versionName,
-      filepath: file,
+      filepath: file as string,
     });
     return true;
   } catch (error) {

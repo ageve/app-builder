@@ -1,0 +1,33 @@
+{
+  "id": "hugo-aiv-app",
+  "name": "Hugo AIV App",
+  "gitUri": "git@github.com:example/hugo-aiv-app.git",
+  "defaults": {
+    "workspaceRoot": "../app-builder-cache/projects",
+    "outputRoot": "build",
+    "runRoot": ".runs",
+    "cleanWorkspace": true
+  },
+  "appInfo": {
+    "name": "HookAI",
+    "slogan": "assistant"
+  },
+  "fir": {
+    "apiKey": "fir-demo-api-key"
+  },
+  "pgyer": {
+    "apiKey": "pgyer-demo-api-key",
+    "buildType": "apk"
+  },
+  "uploadApi": {
+    "alpha": "https://example.com/storage/alpha",
+    "prod": "https://example.com/storage/prod"
+  },
+  "updateUrl": {
+    "alpha": "https://example.com/update/alpha",
+    "prod": "https://example.com/update/prod"
+  },
+  "appStore": {
+    "keychain": "appstore-demo"
+  }
+}

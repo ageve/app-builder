@@ -46,3 +46,4 @@ export function semverToVersionCode(semver: string): number {
 
 // tool
 // console.log("versionCode", semverToVersionCode("10.1.1"));
+// console.log("versionCode", versionCodeToSemver(10000000));

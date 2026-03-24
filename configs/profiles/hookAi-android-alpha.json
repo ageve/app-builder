@@ -1,0 +1,19 @@
+{
+  "id": "hookAi-android-alpha",
+  "projectId": "hugo-aiv-app",
+  "extends": [
+    "android-alpha-base",
+    "hookai-brand-base"
+  ],
+  "pipeline": {
+    "packageAlias": "hookAi",
+    "platform": "android",
+    "env": "alpha",
+    "branch": "alpha"
+  },
+  "files": {
+    "envFile": "envs/hugo-aiv-app/.env.hookAi.alpha",
+    "envPropertiesFile": "envs/hugo-aiv-app/.env.hookAi.properties",
+    "agconnectFile": "envs/hugo-aiv-app/hookAi-agconnect-services.json"
+  }
+}

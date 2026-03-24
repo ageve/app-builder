@@ -156,8 +156,8 @@ async function buildPipeline({
             ]
           : [
               createBuildIOS({
-                projectName: "kuaivideo",
-                schema: "kuaivideo",
+                projectName: "aiv",
+                schema: "aiv",
                 buildType: "Release",
                 exportOptionsPath: {
                   adHoc: resolve(
@@ -171,7 +171,7 @@ async function buildPipeline({
                     `${packageAlias}.ExportOptions.appstore.plist`
                   ),
                 },
-                ipaName: "AIdev",
+                ipaName: "aiv",
                 distributions:
                   env === "alpha" ? ["adHoc"] : ["adHoc", "appStore"],
               }),
@@ -203,11 +203,11 @@ async function buildPipeline({
         tasks.push(createUploadPgyer(config!.pgyer, platform as Platform));
       }
       if (env === "production" && platform === "iOS") {
-        tasks.push(createSyncArchive({ schema: "kuaivideo" }));
-        if (config.appStore) {
-        } else {
-          log.error("[buildPipeline] miss upload appStore config");
-        }
+        tasks.push(createSyncArchive({ schema: "aiv" }));
+        // if (config.appStore) {
+        // } else {
+        //   log.error("[buildPipeline] miss upload appStore config");
+        // }
       }
 
       if (env === "production" && platform === "android") {

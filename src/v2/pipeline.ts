@@ -111,7 +111,9 @@ export default class Pipeline {
       }
     }
     try {
-      return await next(0, this.context, this.tasks);
+      const result = await next(0, this.context, this.tasks);
+      await this.afterRun?.(this.context);
+      return result;
     } catch (error) {
       return false;
     }

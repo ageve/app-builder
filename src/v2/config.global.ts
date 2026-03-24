@@ -12,7 +12,7 @@ const config = buildConfig({
   fir: { apiKey: "xxx" },
   uploadApi: {
     alpha: "https://hugoapia.yocdev.com/storage/upload",
-    prod: "https://hugoapia.yocdev.com/storage/upload",
+    prod: "https://hugoapi.ctssvc.com/storage/upload",
   },
   updateUrl: { alpha: "", prod: "" },
 });
