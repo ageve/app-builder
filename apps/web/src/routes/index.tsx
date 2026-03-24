@@ -55,16 +55,16 @@ function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 border-b border-[#f0e0d2] pb-5 lg:flex-row lg:items-end lg:justify-between">
+      <section className="flex flex-col gap-4 pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#b6907d]">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#94a3b8]">
             Dashboard
           </p>
-          <h2 className="mt-2 text-3xl font-semibold tracking-tight text-[#241913]">
-            Workspace overview
+          <h2 className="mt-2 text-3xl font-semibold tracking-tight text-[#111827]">
+            Overview
           </h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-[#7a6257]">
-            This dashboard stays intentionally simple: start from the workspace list, then follow recent runs.
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-[#64748b]">
+            Start from the workspace, then check recent runs.
           </p>
         </div>
         <div className="flex gap-2">
@@ -72,60 +72,56 @@ function DashboardPage() {
             to="/workspace"
             className={buttonVariants({
               variant: "outline",
-              className: "border-[#ead6c5] bg-white text-[#5c473b] hover:bg-[#fff3e8]",
+              className: "border-[#dbe6f2] bg-white text-[#415168] hover:bg-[#eff5ff]",
             })}
           >
-            Open workspace
+            Workspace
           </Link>
           <Link
             to="/pipelines"
             className={buttonVariants({
               variant: "default",
-              className: "bg-[#f08f54] text-white hover:bg-[#e17d42]",
+              className: "bg-[#4f9cf9] text-white hover:bg-[#438fe8]",
             })}
           >
-            Open pipelines
+            Pipelines
           </Link>
         </div>
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
-        <Card className="border-[#f1dfcf] bg-white shadow-none">
+        <Card className="border-[#e6edf5] bg-white shadow-none">
           <CardHeader>
-            <CardTitle className="text-lg text-[#241913]">Workspace list</CardTitle>
-            <CardDescription>
-              The app is currently centered around one active workspace, with room to grow later.
-            </CardDescription>
+            <CardTitle className="text-lg text-[#111827]">Workspaces</CardTitle>
+            <CardDescription>Available workspaces.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {workspaces.map((workspace) => (
               <Link
                 key={workspace.workspaceId}
                 to="/workspace"
-                className="block rounded-md border border-[#f1dfcf] bg-[#fffaf4] px-4 py-4 transition hover:bg-[#fff2e8]"
+                className="block rounded-md bg-[#f4f8ff] px-4 py-4 transition hover:bg-[#eaf3ff]"
               >
-                <p className="text-sm font-semibold text-[#241913]">{workspace.name}</p>
-                <p className="mt-1 text-xs text-[#8a7368]">{workspace.workspaceId}</p>
-                <p className="mt-3 text-xs text-[#7a6257]">
-                  {workspace.pipelineCount} pipelines in this workspace
+                <p className="text-sm font-semibold text-[#111827]">{workspace.name}</p>
+                <p className="mt-1 text-xs text-[#94a3b8]">{workspace.workspaceId}</p>
+                <p className="mt-3 text-xs text-[#64748b]">
+                  {workspace.pipelineCount} pipelines
                 </p>
               </Link>
             ))}
-            <div className="rounded-md bg-[#fff7f0] px-4 py-3 text-xs leading-5 text-[#8a7368]">
-              Current default workspace: {workspaceDetail.workspace.workspaceId}
+            <div className="rounded-md bg-[#f6f9fd] px-4 py-3 text-xs leading-5 text-[#64748b]">
+              Default: {workspaceDetail.workspace.workspaceId}
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-[#f1dfcf] bg-white shadow-none">
+        <Card className="border-[#e6edf5] bg-white shadow-none">
           <CardHeader>
-            <CardTitle className="text-lg text-[#241913]">Recent run history</CardTitle>
-            <CardDescription>
-              Latest runs across the active workspace, kept in a single table for fast scanning.
-            </CardDescription>
+            <CardTitle className="text-lg text-[#111827]">Recent runs</CardTitle>
+            <CardDescription>Latest runs in the active workspace.</CardDescription>
           </CardHeader>
           <CardContent>
-            <RunsTable runs={recentRuns} emptyMessage="No build history yet." />
+            <RunsTable runs={recentRuns} emptyMessage="No runs yet." />
           </CardContent>
         </Card>
       </section>

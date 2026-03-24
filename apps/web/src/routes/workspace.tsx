@@ -88,7 +88,7 @@ function WorkspacePage() {
         })
         setDraft(normalized)
         setSavedDraft(normalized)
-        toast.success("Workspace config saved")
+        toast.success("Saved")
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Save failed")
       } finally {
@@ -99,7 +99,7 @@ function WorkspacePage() {
 
   return (
     <div className="space-y-6">
-      <section className="border-b border-[#f0e0d2] pb-5">
+      <section className="pb-5">
         <WorkspaceSelectBar
           workspaces={workspaces.map((workspace) => ({
             workspaceId: workspace.workspaceId,
@@ -111,12 +111,10 @@ function WorkspacePage() {
 
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(420px,520px)]">
         <div className="space-y-6">
-          <Card className="border-[#f1dfcf] bg-white shadow-none">
+          <Card className="border-[#e6edf5] bg-white shadow-none">
             <CardHeader>
-              <CardTitle className="text-lg text-[#241913]">Workspace pipelines</CardTitle>
-              <CardDescription>
-                Every pipeline that belongs to this workspace.
-              </CardDescription>
+              <CardTitle className="text-lg text-[#111827]">Pipelines</CardTitle>
+              <CardDescription>In this workspace.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
               {detail.pipelines.map((pipeline) => (
@@ -124,28 +122,28 @@ function WorkspacePage() {
                   key={pipeline.pipelineId}
                   to="/pipelines/$pipelineId"
                   params={{ pipelineId: pipeline.profileId }}
-                  className="rounded-md border border-[#f3e3d5] bg-[#fffaf4] px-4 py-3"
+                  className="rounded-md bg-[#f4f8ff] px-4 py-3"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-[#241913]">
+                      <p className="text-sm font-semibold text-[#111827]">
                         {pipeline.displayName}
                       </p>
-                      <p className="mt-1 text-xs text-[#8a7368] break-all">
+                      <p className="mt-1 break-all text-xs text-[#94a3b8]">
                         {pipeline.profileId}
                       </p>
                     </div>
-                    <p className="shrink-0 text-xs font-medium uppercase tracking-[0.18em] text-[#c07b58]">
+                    <p className="shrink-0 text-xs font-medium uppercase tracking-[0.18em] text-[#4f9cf9]">
                       Open
                     </p>
                   </div>
                   <div className="mt-4 flex flex-wrap items-center gap-2">
                     <StatusPill status={pipeline.platform} />
                     <StatusPill status={pipeline.env} />
-                    <span className="rounded-md bg-white px-2.5 py-1 text-xs text-[#7a6257] ring-1 ring-[#efdac8]">
+                    <span className="rounded-full bg-white px-2.5 py-1 text-xs text-[#64748b] ring-1 ring-[#dce7f3]">
                       {pipeline.branch}
                     </span>
-                    <span className="rounded-md bg-white px-2.5 py-1 text-xs text-[#7a6257] ring-1 ring-[#efdac8]">
+                    <span className="rounded-full bg-white px-2.5 py-1 text-xs text-[#64748b] ring-1 ring-[#dce7f3]">
                       {pipeline.steps.length} steps
                     </span>
                   </div>
@@ -155,22 +153,20 @@ function WorkspacePage() {
           </Card>
         </div>
 
-        <Card className="border-[#f1dfcf] bg-white shadow-none">
+        <Card className="border-[#e6edf5] bg-white shadow-none">
           <CardHeader>
-            <CardTitle className="text-lg text-[#241913]">Workspace config</CardTitle>
-            <CardDescription>
-              Shared JSON config applied before any pipeline-level or runtime overrides.
-            </CardDescription>
+            <CardTitle className="text-lg text-[#111827]">Config</CardTitle>
+            <CardDescription>Base JSON.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <StatusPill status={jsonError ? "invalid_json" : "valid_json"} />
-              <span className="text-[#7a6257]">
+              <span className="text-[#64748b]">
                 {jsonError
                   ? jsonError
                   : isDirty
-                    ? "Unsaved workspace changes"
-                    : "Workspace config is saved"}
+                    ? "Unsaved changes"
+                    : "Saved"}
               </span>
             </div>
             <JsonMonacoEditor value={draft} onChange={setDraft} />
@@ -179,7 +175,7 @@ function WorkspacePage() {
                 onClick={() => void saveConfig()}
                 disabled={saving || Boolean(jsonError) || !isDirty}
               >
-                Save workspace config
+                Save
               </Button>
               <Button
                 variant="outline"

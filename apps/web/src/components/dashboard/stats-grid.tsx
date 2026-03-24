@@ -9,10 +9,10 @@ const iconMap = {
 }
 
 const descriptions = {
-  queued: "待执行或待重试",
-  running: "正在执行的流水",
-  failed: "需要人工处理",
-  success: "最近成功完成",
+  queued: "Waiting",
+  running: "In progress",
+  failed: "Needs action",
+  success: "Done",
 }
 
 export function StatsGrid({
@@ -32,7 +32,7 @@ export function StatsGrid({
         return (
           <Card
             key={key}
-            className="rounded-[2rem] border-white/70 bg-white/80 shadow-sm shadow-slate-200/70 backdrop-blur"
+            className="rounded-md border-white/70 bg-white/80 shadow-sm shadow-slate-200/70 backdrop-blur"
           >
             <CardHeader className="flex flex-row items-start justify-between space-y-0">
               <div>
@@ -43,7 +43,7 @@ export function StatsGrid({
                   {stats[key]}
                 </p>
               </div>
-              <div className="rounded-2xl bg-slate-100 p-3 text-slate-700">
+              <div className="rounded-md bg-slate-100 p-3 text-slate-700">
                 <Icon className="size-4" />
               </div>
             </CardHeader>

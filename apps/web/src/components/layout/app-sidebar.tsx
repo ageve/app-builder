@@ -35,9 +35,9 @@ export function AppSidebar() {
   }, [])
 
   return (
-    <aside className="flex h-full w-full flex-col border-r border-[#f1dfcf] bg-[#fffaf4] px-4 py-5">
+    <aside className="flex h-full w-full flex-col border-r border-[#e6edf5] bg-white px-4 py-5">
       <div className="space-y-6">
-        <p className="text-[15px] font-black uppercase tracking-[0.28em] text-[#dd6b38]">
+        <p className="text-[15px] font-black uppercase tracking-[0.28em] text-[#111827]">
           App Builder
         </p>
 
@@ -54,11 +54,11 @@ export function AppSidebar() {
                   "exact" in link && !isRecentPipelineLink ? { exact: true } : undefined
                 }
                 className={cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-[#71594c] transition hover:bg-[#fff1e6] hover:text-[#2d2018]"
+                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-[#5f6f84] transition hover:bg-[#eff5ff] hover:text-[#111827]"
                 )}
                 activeProps={{
                   className:
-                    "flex items-center gap-3 rounded-md bg-[#f08f54] px-3 py-2 text-sm font-medium text-white shadow-sm",
+                    "flex items-center gap-3 rounded-md bg-[#4f9cf9] px-3 py-2 text-sm font-medium text-white",
                 }}
               >
                 <Icon className="size-4" />

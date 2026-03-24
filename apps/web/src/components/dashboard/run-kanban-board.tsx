@@ -55,7 +55,7 @@ function SortableRunCard({ run }: { run: RunCard }) {
         transition,
       }}
       className={cn(
-        "rounded-3xl border border-white/80 bg-white/95 p-4 shadow-sm shadow-slate-200/70 backdrop-blur transition duration-200",
+        "rounded-md border border-white/80 bg-white/95 p-4 shadow-sm shadow-slate-200/70 backdrop-blur transition duration-200",
         isDragging && "rotate-[1deg] shadow-xl"
       )}
       {...attributes}
@@ -69,14 +69,14 @@ function SortableRunCard({ run }: { run: RunCard }) {
         <StatusPill status={run.status} />
       </div>
       <div className="mt-4 space-y-3">
-        <div className="rounded-2xl bg-slate-50 px-3 py-2">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Current step</p>
+        <div className="rounded-md bg-slate-50 px-3 py-2">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Step</p>
           <p className="mt-1 text-sm font-medium text-slate-700">
             {run.currentStepId ?? "waiting_for_worker"}
           </p>
         </div>
         {run.errorMessage ? (
-          <p className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+          <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
             {run.errorMessage}
           </p>
         ) : null}
@@ -107,7 +107,7 @@ function Column({
   runs: RunCard[]
 }) {
   return (
-    <Card className="rounded-[2rem] border-white/70 bg-white/75 shadow-sm shadow-slate-200/60 backdrop-blur">
+    <Card className="rounded-md border-white/70 bg-white/75 shadow-sm shadow-slate-200/60 backdrop-blur">
       <CardHeader className="space-y-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg font-semibold text-slate-900">{title}</CardTitle>
@@ -125,8 +125,8 @@ function Column({
             {runs.length > 0 ? (
               runs.map((run) => <SortableRunCard key={run.runId} run={run} />)
             ) : (
-              <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-8 text-center text-sm text-slate-400">
-                No runs in this state right now.
+              <div className="rounded-md bg-slate-50/80 px-4 py-8 text-center text-sm text-slate-400">
+                No runs here.
               </div>
             )}
           </div>
@@ -183,7 +183,7 @@ export function RunKanbanBoard({ runs }: { runs: RunCard[] }) {
         ))}
       </div>
       <div className="mt-4 flex items-center justify-between text-xs text-slate-400">
-        <span>Drag is local-only for triage and scanning.</span>
+        <span>Drag is local only.</span>
         <span>Last refresh: {formatDate(new Date().toISOString())}</span>
       </div>
     </DndContext>

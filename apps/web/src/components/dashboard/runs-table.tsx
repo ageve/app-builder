@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router"
-import { buttonVariants } from "~/components/ui/button"
+import { SlidersHorizontal } from "lucide-react"
+import { Button, buttonVariants } from "~/components/ui/button"
 import {
   Table,
   TableBody,
@@ -25,9 +26,13 @@ type RunRow = {
 export function RunsTable({
   runs,
   emptyMessage = "No runs yet.",
+  onConfigureRun,
+  configuringRunId,
 }: {
   runs: RunRow[]
   emptyMessage?: string
+  onConfigureRun?: (run: RunRow) => void
+  configuringRunId?: string | null
 }) {
   if (runs.length === 0) {
     return (
@@ -43,10 +48,11 @@ export function RunsTable({
         <TableRow className="border-slate-200">
           <TableHead>Run</TableHead>
           <TableHead>Status</TableHead>
-          <TableHead>Current step</TableHead>
+          <TableHead>Step</TableHead>
           <TableHead>Started</TableHead>
           <TableHead>Trigger</TableHead>
           <TableHead>Error</TableHead>
+          {onConfigureRun ? <TableHead className="text-right">Settings</TableHead> : null}
           <TableHead className="text-right">Open</TableHead>
         </TableRow>
       </TableHeader>
@@ -70,13 +76,26 @@ export function RunsTable({
             <TableCell className="max-w-[260px] truncate text-slate-500">
               {run.errorMessage ?? "—"}
             </TableCell>
+            {onConfigureRun ? (
+              <TableCell className="text-right">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onConfigureRun(run)}
+                  disabled={configuringRunId === run.runId}
+                >
+                  <SlidersHorizontal className="size-4" />
+                  {configuringRunId === run.runId ? "Loading" : "Use"}
+                </Button>
+              </TableCell>
+            ) : null}
             <TableCell className="text-right">
               <Link
                 to="/runs/$runId"
                 params={{ runId: run.runId }}
                 className={buttonVariants({ variant: "outline", size: "sm" })}
               >
-                View
+                Open
               </Link>
             </TableCell>
           </TableRow>

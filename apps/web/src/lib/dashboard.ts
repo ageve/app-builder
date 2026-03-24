@@ -8,22 +8,22 @@ export const dashboardColumns: Array<{
   {
     id: "queued",
     title: "Queued",
-    description: "Waiting for a worker or a retry window.",
+    description: "Waiting to run.",
   },
   {
     id: "running",
     title: "Running",
-    description: "Active builds and step execution progress.",
+    description: "In progress.",
   },
   {
     id: "failed",
     title: "Failed",
-    description: "Needs a retry or resume from checkpoint.",
+    description: "Needs action.",
   },
   {
     id: "success",
     title: "Success",
-    description: "Recent completed runs and outputs.",
+    description: "Done.",
   },
 ]
 
@@ -46,26 +46,26 @@ export function formatDate(value?: string) {
 }
 
 export function formatRelative(value?: string) {
-  if (!value) return "未开始"
+  if (!value) return "Not started"
   const diffMs = Date.now() - new Date(value).getTime()
   const diffMinutes = Math.floor(diffMs / 60000)
-  if (diffMinutes < 1) return "刚刚"
-  if (diffMinutes < 60) return `${diffMinutes} 分钟前`
+  if (diffMinutes < 1) return "Just now"
+  if (diffMinutes < 60) return `${diffMinutes}m ago`
   const diffHours = Math.floor(diffMinutes / 60)
-  if (diffHours < 24) return `${diffHours} 小时前`
+  if (diffHours < 24) return `${diffHours}h ago`
   const diffDays = Math.floor(diffHours / 24)
-  return `${diffDays} 天前`
+  return `${diffDays}d ago`
 }
 
 export function statusTone(status: string) {
   switch (status) {
     case "running":
-      return "bg-amber-100 text-amber-800 border-amber-200"
+      return "bg-[#eef5ff] text-[#3b82f6]"
     case "failed":
-      return "bg-rose-100 text-rose-800 border-rose-200"
+      return "bg-[#fff1f2] text-[#e11d48]"
     case "success":
-      return "bg-emerald-100 text-emerald-800 border-emerald-200"
+      return "bg-[#ecfdf3] text-[#16a34a]"
     default:
-      return "bg-slate-100 text-slate-700 border-slate-200"
+      return "bg-[#f5f8fc] text-[#64748b]"
   }
 }

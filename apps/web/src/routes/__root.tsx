@@ -25,8 +25,8 @@ export const Route = createRootRoute({
         content: 'width=device-width, initial-scale=1',
       },
       ...seo({
-        title: 'App Builder Dashboard',
-        description: 'Pipeline control center for app-builder.',
+        title: 'App Builder',
+        description: 'Build dashboard.',
       }),
     ],
     links: [
