@@ -41,7 +41,7 @@ export function JsonMonacoEditor({
         </div>
       }
     >
-      <div className="overflow-hidden rounded-md border border-slate-200">
+      <div className="monaco-scrollbar-shell overflow-hidden rounded-md border border-slate-200">
         <MonacoEditor
           height={height}
           defaultLanguage="json"
@@ -55,6 +55,11 @@ export function JsonMonacoEditor({
             formatOnPaste: true,
             formatOnType: true,
             scrollBeyondLastLine: false,
+            scrollbar: {
+              alwaysConsumeMouseWheel: false,
+              horizontalScrollbarSize: 4,
+              verticalScrollbarSize: 4,
+            },
             wordWrap: "on",
             lineNumbersMinChars: 3,
             padding: { top: 16, bottom: 16 },

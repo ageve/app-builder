@@ -5,18 +5,12 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "build": "tsc",
-    "runtime": "bun run src/worker/main.ts serve",
-    "worker": "bun run src/worker/main.ts work",
-    "worker:once": "bun run src/worker/main.ts work --once",
-    "executor": "bun run src/executor/main.ts work",
-    "executor:once": "bun run src/executor/main.ts work --once",
-    "web:dev": "cd apps/web && bun run dev",
-    "web:build": "cd apps/web && bun run build",
-    "dashboard:docker:up": "docker compose -f .docker/dashboard/docker-compose.yml up --build --remove-orphans",
-    "dashboard:docker:down": "docker compose -f .docker/dashboard/docker-compose.yml down --remove-orphans",
-    "build:hugoGame": "npm run build && zx ./buildHugoGameAlpha.mjs",
-    "test": "bun test"
+    "build": "bun run src/cli/main.ts",
+    "web:dev": "cd dashboard && bun run dev",
+    "web:build": "cd dashboard && bun run build",
+    "docker:up": "docker compose -f .docker/dashboard/docker-compose.yml up --build --remove-orphans",
+    "docker:down": "docker compose -f .docker/dashboard/docker-compose.yml down --remove-orphans",
+    "dev": "bun run docker:up"
   },
   "dependencies": {
     "@clack/prompts": "^0.11.0",

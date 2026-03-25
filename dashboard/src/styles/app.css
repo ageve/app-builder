@@ -154,3 +154,12 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
 }
+
+.monaco-scrollbar-shell .monaco-scrollable-element > .scrollbar {
+  background: rgb(243 244 246) !important;
+}
+
+.monaco-scrollbar-shell .monaco-scrollable-element > .scrollbar > .slider {
+  background: rgb(209 213 219) !important;
+  border-radius: 9999px !important;
+}

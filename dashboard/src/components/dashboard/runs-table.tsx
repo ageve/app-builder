@@ -1,6 +1,5 @@
 import { Link } from "@tanstack/react-router"
-import { SlidersHorizontal } from "lucide-react"
-import { Button, buttonVariants } from "~/components/ui/button"
+import { buttonVariants } from "~/components/ui/button"
 import {
   Table,
   TableBody,
@@ -26,13 +25,15 @@ type RunRow = {
 export function RunsTable({
   runs,
   emptyMessage = "No runs yet.",
-  onConfigureRun,
-  configuringRunId,
+  onSelectRun,
+  selectedRunId,
+  loadingRunId,
 }: {
   runs: RunRow[]
   emptyMessage?: string
-  onConfigureRun?: (run: RunRow) => void
-  configuringRunId?: string | null
+  onSelectRun?: (run: RunRow) => void
+  selectedRunId?: string | null
+  loadingRunId?: string | null
 }) {
   if (runs.length === 0) {
     return (
@@ -52,18 +53,39 @@ export function RunsTable({
           <TableHead>Started</TableHead>
           <TableHead>Trigger</TableHead>
           <TableHead>Error</TableHead>
-          {onConfigureRun ? <TableHead className="text-right">Settings</TableHead> : null}
           <TableHead className="text-right">Open</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {runs.map((run) => (
-          <TableRow key={run.runId} className="border-slate-100 hover:bg-slate-50">
+          <TableRow
+            key={run.runId}
+            className={
+              run.runId === selectedRunId
+                ? "border-slate-100 bg-slate-50"
+                : "border-slate-100 hover:bg-slate-50"
+            }
+          >
             <TableCell>
-              <div>
-                <p className="font-medium text-slate-900">{run.profileId}</p>
-                <p className="text-xs text-slate-500">{run.runId}</p>
-              </div>
+              {onSelectRun ? (
+                <button
+                  type="button"
+                  className="text-left"
+                  onClick={() => onSelectRun(run)}
+                >
+                  <p className="font-medium text-slate-900 hover:text-slate-700">
+                    {run.profileId}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {loadingRunId === run.runId ? "Loading..." : run.runId}
+                  </p>
+                </button>
+              ) : (
+                <div>
+                  <p className="font-medium text-slate-900">{run.profileId}</p>
+                  <p className="text-xs text-slate-500">{run.runId}</p>
+                </div>
+              )}
             </TableCell>
             <TableCell>
               <StatusPill status={run.status} />
@@ -76,19 +98,6 @@ export function RunsTable({
             <TableCell className="max-w-[260px] truncate text-slate-500">
               {run.errorMessage ?? "—"}
             </TableCell>
-            {onConfigureRun ? (
-              <TableCell className="text-right">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onConfigureRun(run)}
-                  disabled={configuringRunId === run.runId}
-                >
-                  <SlidersHorizontal className="size-4" />
-                  {configuringRunId === run.runId ? "Loading" : "Use"}
-                </Button>
-              </TableCell>
-            ) : null}
             <TableCell className="text-right">
               <Link
                 to="/runs/$runId"

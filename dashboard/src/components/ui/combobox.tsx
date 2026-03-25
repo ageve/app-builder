@@ -3,7 +3,7 @@
 import { Check, ChevronsUpDown } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "~/components/ui/button"
-import { cn } from "~/lib/utils"
+import { cn, subtleScrollbarClass } from "~/lib/utils"
 
 type ComboboxOption = {
   value: string
@@ -85,7 +85,7 @@ export function Combobox({
             className="h-9 w-full min-w-[18rem] rounded-md border border-[#e6edf5] bg-[#f8fbff] px-3 text-sm text-[#111827] outline-none transition focus:border-[#7db5ff] focus:ring-2 focus:ring-[#d9eaff]"
           />
 
-          <div className="mt-2 max-h-64 overflow-auto">
+          <div className={cn("mt-2 max-h-64 overflow-auto", subtleScrollbarClass)}>
             {filteredOptions.length > 0 ? (
               filteredOptions.map((option) => {
                 const isSelected = option.value === value

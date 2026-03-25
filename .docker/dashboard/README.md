@@ -27,7 +27,7 @@ docker compose -f .docker/dashboard/docker-compose.yml down
 - `app-builder-runtime` exposes the state/data API on port `4001`.
 - Run the real executor on the host machine so `git`, Android SDK, Xcode, signing, and other local tools stay in the native environment.
 - Docker services no longer execute `git clone`, Gradle, or Xcode commands.
-- `apps/web` talks to the runtime server over HTTP instead of touching DuckDB directly.
+- `dashboard` talks to the runtime server over HTTP instead of touching DuckDB directly.
 - If you want the dashboard bound to a different port, change the `3000:3000` mapping.
 - The compose file pins `npm` registry env vars to `https://registry.npmjs.org/` to avoid mirror-specific 404s during container installs.
 - Web and runtime services use separate `node_modules` volumes so two concurrent `bun install` processes do not race on the same dependency tree.

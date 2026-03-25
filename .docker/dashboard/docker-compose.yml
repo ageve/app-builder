@@ -7,13 +7,13 @@ services:
     command:
       - /bin/sh
       - -lc
-      - bun install && cd apps/web && bun install && APP_BUILDER_REPO_CWD=/workspace/app-builder bun run dev --host 0.0.0.0
+      - bun install && cd dashboard && bun install && APP_BUILDER_REPO_CWD=/workspace/app-builder bun run dev --host 0.0.0.0
     ports:
       - "3000:3000"
     volumes:
       - ../../:/workspace/app-builder
-      - app_builder_web_root_node_modules:/workspace/app-builder/node_modules
-      - app_builder_web_app_node_modules:/workspace/app-builder/apps/web/node_modules
+      - dashboard_root_node_modules:/workspace/app-builder/node_modules
+      - dashboard_node_modules:/workspace/app-builder/dashboard/node_modules
     environment:
       APP_BUILDER_RUNTIME_URL: http://app-builder-runtime:4001
       BUN_INSTALL_CACHE_DIR: /root/.bun/install/cache
@@ -33,13 +33,13 @@ services:
       - "4001:4001"
     volumes:
       - ../../:/workspace/app-builder
-      - app_builder_runtime_root_node_modules:/workspace/app-builder/node_modules
+      - runtime_root_node_modules:/workspace/app-builder/node_modules
     environment:
       BUN_INSTALL_CACHE_DIR: /root/.bun/install/cache
       NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
       npm_config_registry: https://registry.npmjs.org/
 
 volumes:
-  app_builder_web_root_node_modules:
-  app_builder_web_app_node_modules:
-  app_builder_runtime_root_node_modules:
+  dashboard_root_node_modules:
+  dashboard_node_modules:
+  runtime_root_node_modules:

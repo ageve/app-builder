@@ -1,7 +1,8 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router"
-import { Play, ScanSearch, SlidersHorizontal } from "lucide-react"
+import { Play, SlidersHorizontal } from "lucide-react"
 import { startTransition, useState } from "react"
 import { toast } from "sonner"
+import { JsonCodeView } from "~/components/config/json-code-view"
 import { JsonMonacoEditor } from "~/components/config/json-monaco-editor"
 import { RunsTable } from "~/components/dashboard/runs-table"
 import { StatusPill } from "~/components/dashboard/status-pill"
@@ -15,7 +16,6 @@ import {
   getPipelineConfigServerFn,
   getPipelineServerFn,
   getWorkspacePipelinesServerFn,
-  inspectConfigServerFn,
   listWorkspacesServerFn,
   savePipelineConfigServerFn,
   startBuildServerFn,
@@ -68,6 +68,7 @@ type PipelineLoaderData = {
 type RuntimeConfigRunDetail = {
   run: {
     runId: string
+    status: string
   }
   context: {
     request: {
@@ -134,13 +135,13 @@ function PipelineDetailPage() {
   const [pipelineDraft, setPipelineDraft] = useState(config.content)
   const [savedPipelineDraft, setSavedPipelineDraft] = useState(config.content)
   const [runtimeDraft, setRuntimeDraft] = useState(EMPTY_RUNTIME_CONFIG)
-  const [resolvedPreview, setResolvedPreview] = useState("")
   const [saving, setSaving] = useState(false)
   const [running, setRunning] = useState(false)
-  const [resolving, setResolving] = useState(false)
-  const [showRuntimeSettings, setShowRuntimeSettings] = useState(false)
+  const [showRuntimeConfig, setShowRuntimeConfig] = useState(false)
   const [runtimeSourceLabel, setRuntimeSourceLabel] = useState<string | null>(null)
   const [configuringRunId, setConfiguringRunId] = useState<string | null>(null)
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
+  const [runtimeReadOnly, setRuntimeReadOnly] = useState(false)
   const pipelineJsonError = getJsonErrorMessage(pipelineDraft)
   const runtimeJsonError = getRuntimeConfigErrorMessage(runtimeDraft)
   const isPipelineDirty = pipelineDraft !== savedPipelineDraft
@@ -161,21 +162,13 @@ function PipelineDetailPage() {
 
   const updateRuntimeDraft = (nextValue: string) => {
     setRuntimeDraft(nextValue)
-    setResolvedPreview("")
   }
 
   const resetRuntimeDraft = () => {
     setRuntimeDraft(EMPTY_RUNTIME_CONFIG)
-    setResolvedPreview("")
     setRuntimeSourceLabel(null)
-  }
-
-  const openRuntimeSettings = () => {
-    setShowRuntimeSettings(true)
-  }
-
-  const toggleRuntimeSettings = () => {
-    setShowRuntimeSettings((current) => !current)
+    setSelectedRunId(null)
+    setRuntimeReadOnly(false)
   }
 
   const savePipelineConfig = async () => {
@@ -205,36 +198,8 @@ function PipelineDetailPage() {
     })
   }
 
-  const inspectResolved = async () => {
-    if (runtimeJsonError) {
-      openRuntimeSettings()
-      toast.error(runtimeJsonError)
-      return
-    }
-    setResolving(true)
-    startTransition(async () => {
-      try {
-        const runtimeConfig = parseRuntimeConfig()
-        const resolved = await inspectConfigServerFn({
-          data: {
-            projectId: detail.pipeline.projectId,
-            profileId: detail.pipeline.profileId,
-            runtimeConfig,
-          },
-        })
-        setResolvedPreview(JSON.stringify(resolved, null, 2))
-        toast.success("Preview updated")
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Resolve failed")
-      } finally {
-        setResolving(false)
-      }
-    })
-  }
-
   const startBuild = async () => {
     if (runtimeJsonError) {
-      openRuntimeSettings()
       toast.error(runtimeJsonError)
       return
     }
@@ -271,13 +236,9 @@ function PipelineDetailPage() {
       }
 
       setRuntimeDraft(formatRuntimeConfig(runDetail.context.request.overrides?.runtimeConfig))
-      setResolvedPreview(
-        runDetail.context.resolvedConfig
-          ? `${JSON.stringify(runDetail.context.resolvedConfig, null, 2)}\n`
-          : ""
-      )
+      setSelectedRunId(runDetail.run.runId)
+      setRuntimeReadOnly(runDetail.run.status === "success")
       setRuntimeSourceLabel(`From ${runDetail.run.runId}`)
-      setShowRuntimeSettings(true)
       toast.success("Loaded")
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to load runtime config")
@@ -310,13 +271,16 @@ function PipelineDetailPage() {
               <div>
                 <CardTitle className="text-lg text-[#111827]">Runs</CardTitle>
                 <CardDescription>
-                  Start builds here. Open settings only when needed.
+                  Start builds here. Click a run to load its runtime config into Config.
                 </CardDescription>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onClick={toggleRuntimeSettings}>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowRuntimeConfig((current) => !current)}
+                >
                   <SlidersHorizontal className="size-4" />
-                  {showRuntimeSettings ? "Hide" : "Settings"}
+                  {showRuntimeConfig ? "Hide Settings" : "Settings"}
                 </Button>
                 <Button onClick={() => void startBuild()} disabled={running}>
                   <Play className="size-4" />
@@ -335,7 +299,25 @@ function PipelineDetailPage() {
               </div>
             </div>
 
-            {showRuntimeSettings ? (
+            <RunsTable
+              runs={detail.runs}
+              emptyMessage="No runs yet."
+              onSelectRun={(run) => void loadRuntimeConfigFromRun(run.runId)}
+              selectedRunId={selectedRunId}
+              loadingRunId={configuringRunId}
+            />
+          </CardContent>
+        </Card>
+
+        <Card className="border-[#e6edf5] bg-white shadow-none">
+          <CardHeader>
+            <CardTitle className="text-lg text-[#111827]">Config</CardTitle>
+            <CardDescription>
+              Pipeline JSON and optional runtime overrides.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {showRuntimeConfig ? (
               <div className="space-y-4 rounded-md bg-[#f8fbff] px-4 py-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div className="space-y-2">
@@ -344,7 +326,9 @@ function PipelineDetailPage() {
                       <span className="text-[#64748b]">
                         {runtimeJsonError
                           ? runtimeJsonError
-                          : "Optional. Only used for the next run."}
+                          : runtimeReadOnly
+                            ? "Successful runs are view-only."
+                            : "Optional. Used for the next run."}
                       </span>
                     </div>
                     {runtimeSourceLabel ? (
@@ -357,46 +341,23 @@ function PipelineDetailPage() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Button variant="outline" onClick={resetRuntimeDraft}>
-                      Clear
-                    </Button>
-                    <Button variant="outline" onClick={() => void inspectResolved()} disabled={resolving}>
-                      <ScanSearch className="size-4" />
-                      Preview
+                      {selectedRunId ? "Back to draft" : "Clear"}
                     </Button>
                   </div>
                 </div>
 
-                <JsonMonacoEditor value={runtimeDraft} onChange={updateRuntimeDraft} height={280} />
-
-                {resolvedPreview ? (
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-sm font-medium text-[#111827]">Preview</p>
-                      <p className="mt-1 text-xs text-[#94a3b8]">
-                        Preview for the current draft.
-                      </p>
-                    </div>
-                    <JsonMonacoEditor value={resolvedPreview} readOnly height={240} />
-                  </div>
-                ) : null}
+                {runtimeReadOnly ? (
+                  <JsonCodeView value={runtimeDraft} height={280} />
+                ) : (
+                  <JsonMonacoEditor
+                    value={runtimeDraft}
+                    onChange={updateRuntimeDraft}
+                    height={280}
+                  />
+                )}
               </div>
             ) : null}
 
-            <RunsTable
-              runs={detail.runs}
-              emptyMessage="No runs yet."
-              onConfigureRun={(run) => void loadRuntimeConfigFromRun(run.runId)}
-              configuringRunId={configuringRunId}
-            />
-          </CardContent>
-        </Card>
-
-        <Card className="border-[#e6edf5] bg-white shadow-none">
-          <CardHeader>
-            <CardTitle className="text-lg text-[#111827]">Config</CardTitle>
-            <CardDescription>Saved JSON.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <StatusPill status={pipelineJsonError ? "invalid_json" : "valid_json"} />

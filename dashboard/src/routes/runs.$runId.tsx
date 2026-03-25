@@ -7,6 +7,7 @@ import { Button, buttonVariants } from "~/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card"
 import { Progress } from "~/components/ui/progress"
 import { formatDate } from "~/lib/dashboard"
+import { cn, subtleScrollbarClass } from "~/lib/utils"
 import {
   getRunDetailServerFn,
   readRunLogServerFn,
@@ -141,14 +142,6 @@ function RunDetailPage() {
           Back
         </Link>
         <ChevronRight className="size-4 text-[#c4d3e4]" />
-        <Link to="/" className="hover:text-[#111827]">
-          Dashboard
-        </Link>
-        <ChevronRight className="size-4 text-[#c4d3e4]" />
-        <Link to="/pipelines" className="hover:text-[#111827]">
-          Pipelines
-        </Link>
-        <ChevronRight className="size-4 text-[#c4d3e4]" />
         <Link
           to="/pipelines/$pipelineId"
           params={{ pipelineId: detail.run.profileId }}
@@ -192,76 +185,86 @@ function RunDetailPage() {
         </div>
       </section>
 
-      <Card className="border-[#e6edf5] bg-white shadow-none">
-        <CardHeader className="space-y-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+        <Card className="flex h-[680px] min-h-0 flex-col border-[#e6edf5] bg-white shadow-none">
+          <CardHeader className="space-y-4">
             <div>
               <CardTitle className="text-lg font-semibold text-[#111827]">
                 Progress
               </CardTitle>
-              <CardDescription>Progress and step status.</CardDescription>
+              <CardDescription>Step status for this run.</CardDescription>
             </div>
-            <div className="grid gap-1 text-sm text-[#64748b]">
-              <span>Started {formatDate(detail.run.startedAt)}</span>
-              <span>Ended {formatDate(detail.run.endedAt)}</span>
-              <span>Step {detail.run.currentStepId ?? "waiting_for_worker"}</span>
+
+            <div className="rounded-md bg-[#f7fbff] px-4 py-4">
+              <div className="flex items-center justify-between text-sm text-[#5f6f84]">
+                <span>Completed steps</span>
+                <span>{completedCount}/{detail.steps.length}</span>
+              </div>
+              <Progress value={progress} className="mt-3 h-2 rounded-full bg-[#dceaff]" />
             </div>
-          </div>
+          </CardHeader>
 
-          <div className="rounded-md bg-[#f7fbff] px-4 py-4">
-            <div className="flex items-center justify-between text-sm text-[#5f6f84]">
-              <span>Completed steps</span>
-              <span>
-                {completedCount}/{detail.steps.length} · {progress}%
-              </span>
-            </div>
-            <Progress value={progress} className="mt-3 h-2 rounded-full bg-[#dceaff]" />
-          </div>
-        </CardHeader>
+          <CardContent className="min-h-0 flex-1 overflow-hidden">
+            <div className={cn("h-full overflow-y-auto pr-2", subtleScrollbarClass)}>
+              {detail.steps.map((step, index) => {
+                const isLast = index === detail.steps.length - 1
+                return (
+                  <div key={step.stepId} className="relative pl-12">
+                    {!isLast ? (
+                      <div className="absolute left-[17px] top-8 bottom-[-18px] w-px bg-[#deebf7]" />
+                    ) : null}
+                    <div
+                      className={timelineDotClass(step.status)}
+                      style={{ left: "10px", top: "18px" }}
+                    />
 
-        <CardContent className="space-y-0">
-          {detail.steps.map((step, index) => {
-            const isLast = index === detail.steps.length - 1
-            return (
-              <div key={step.stepId} className="relative pl-12">
-                {!isLast ? (
-                  <div className="absolute left-[17px] top-8 bottom-[-18px] w-px bg-[#deebf7]" />
-                ) : null}
-                <div
-                  className={timelineDotClass(step.status)}
-                  style={{ left: "10px", top: "18px" }}
-                />
-
-                <div className="py-4">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-semibold text-[#111827]">
-                          {step.displayName}
-                        </p>
-                        <StatusPill status={step.status} />
+                    <div className="py-4">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold text-[#111827]">
+                            {step.displayName}
+                          </p>
+                          <StatusPill status={step.status} />
+                        </div>
+                        <p className="mt-1 text-xs text-[#94a3b8]">{step.stepId}</p>
+                        {step.error?.message ? (
+                          <p className="mt-3 rounded-md bg-[#fff1f2] px-3 py-2 text-sm text-[#be123c]">
+                            {step.error.message}
+                          </p>
+                        ) : null}
                       </div>
-                      <p className="mt-1 text-xs text-[#94a3b8]">{step.stepId}</p>
-                      {step.error?.message ? (
-                        <p className="mt-3 rounded-md bg-[#fff1f2] px-3 py-2 text-sm text-[#be123c]">
-                          {step.error.message}
-                        </p>
-                      ) : null}
-                    </div>
-
-                    <div className="grid gap-1 text-xs text-[#94a3b8] lg:text-right">
-                      <span>Started {formatDate(step.startedAt)}</span>
-                      <span>Ended {formatDate(step.endedAt)}</span>
                     </div>
                   </div>
-                </div>
-              </div>
-            )
-          })}
-        </CardContent>
-      </Card>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
+        <Card className="flex h-[680px] min-h-0 flex-col border-[#e6edf5] bg-white shadow-none">
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-lg font-semibold text-[#111827]">Logs</CardTitle>
+                <CardDescription>{log.logFile || "No log file"}</CardDescription>
+              </div>
+              <Terminal className="size-5 text-[#94a3b8]" />
+            </div>
+          </CardHeader>
+          <CardContent className="min-h-0 flex-1 overflow-hidden">
+            <pre
+              className={cn(
+                "h-full overflow-auto rounded-md bg-[#2a1f1a] p-5 text-xs leading-6 text-[#fff5ec]",
+                subtleScrollbarClass
+              )}
+            >
+              {log.content || "No logs yet."}
+            </pre>
+          </CardContent>
+        </Card>
+      </div>
+
+      {detail.run.status === "success" ? (
         <Card className="border-[#e6edf5] bg-white shadow-none">
           <CardHeader>
             <CardTitle className="text-lg font-semibold text-[#111827]">Artifacts</CardTitle>
@@ -290,24 +293,7 @@ function RunDetailPage() {
             )}
           </CardContent>
         </Card>
-
-        <Card className="border-[#e6edf5] bg-white shadow-none">
-          <CardHeader>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <CardTitle className="text-lg font-semibold text-[#111827]">Logs</CardTitle>
-                <CardDescription>{log.logFile || "No log file"}</CardDescription>
-              </div>
-              <Terminal className="size-5 text-[#94a3b8]" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <pre className="max-h-[560px] overflow-auto rounded-md bg-[#2a1f1a] p-5 text-xs leading-6 text-[#fff5ec]">
-              {log.content || "No logs yet."}
-            </pre>
-          </CardContent>
-        </Card>
-      </div>
+      ) : null}
     </div>
   )
 }
