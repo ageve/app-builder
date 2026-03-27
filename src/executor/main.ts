@@ -7,6 +7,14 @@ import { runStepWithPersistence, StepPersistence } from "../runtime/steps";
 import { PipelineRunDetail, StepId, UploadRecord } from "../runtime/types";
 
 const program = new Command();
+let activeRun:
+  | {
+      runtimeUrl: string;
+      runId: string;
+      stepId: StepId;
+    }
+  | undefined;
+let isCleaningUp = false;
 
 function cwdOption(value: string | undefined) {
   return value ? resolve(value) : process.cwd();
@@ -143,6 +151,31 @@ async function markRunFailureRemote(
   });
 }
 
+async function failActiveRun(
+  message: string,
+  category = "executor_interrupted"
+) {
+  if (!activeRun || isCleaningUp) {
+    return;
+  }
+
+  isCleaningUp = true;
+  try {
+    await markRunFailureRemote(
+      activeRun.runtimeUrl,
+      activeRun.runId,
+      activeRun.stepId,
+      message,
+      category
+    );
+  } catch (error) {
+    console.error(error);
+  } finally {
+    activeRun = undefined;
+    isCleaningUp = false;
+  }
+}
+
 async function claimNextRun(runtimeUrl: string, cwd: string) {
   const detail = await runtimeFetch<PipelineRunDetail | null>(
     runtimeUrl,
@@ -183,6 +216,11 @@ async function workOnce(runtimeUrl: string, cwd: string) {
 
   for (const stepId of orderedSteps.slice(startIndex)) {
     lastStepId = stepId;
+    activeRun = {
+      runtimeUrl,
+      runId: detail.run.runId,
+      stepId,
+    };
     await markCurrentStep(runtimeUrl, detail.run.runId, stepId);
     const result = await runStepWithPersistence({
       persistence,
@@ -198,6 +236,7 @@ async function workOnce(runtimeUrl: string, cwd: string) {
         result.error?.message ?? "step execution failed",
         result.error?.category ?? "step_execution_failed"
       );
+      activeRun = undefined;
       return {
         ok: false,
         runId: detail.run.runId,
@@ -209,6 +248,7 @@ async function workOnce(runtimeUrl: string, cwd: string) {
 
   await markRunSuccessRemote(runtimeUrl, detail.run.runId);
   await markCurrentStep(runtimeUrl, detail.run.runId, undefined);
+  activeRun = undefined;
   return {
     ok: true,
     runId: detail.run.runId,
@@ -217,6 +257,32 @@ async function workOnce(runtimeUrl: string, cwd: string) {
     results,
   };
 }
+
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.on(signal, () => {
+    void failActiveRun(`executor interrupted by ${signal.toLowerCase()}`).finally(() => {
+      process.exit(1);
+    });
+  });
+}
+
+process.on("uncaughtException", (error) => {
+  console.error(error);
+  void failActiveRun(error.message || "uncaught exception", "executor_uncaught_exception").finally(
+    () => {
+      process.exit(1);
+    }
+  );
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error(reason);
+  const message =
+    reason instanceof Error ? reason.message : `unhandled rejection: ${String(reason)}`;
+  void failActiveRun(message, "executor_unhandled_rejection").finally(() => {
+    process.exit(1);
+  });
+});
 
 program.name("app-builder-executor").description("Local executor for app-builder runs");
 

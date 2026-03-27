@@ -38,6 +38,7 @@ import {
   savePipelineRunContext,
   upsertPipelineDefinition,
   updateRunStatus,
+  updateStepState,
 } from "./store";
 
 function stepDefinitionsForPipeline(stepIds: StepId[]): StepDefinition[] {
@@ -321,6 +322,70 @@ export async function listBuildRuns(cwd: string, limit?: number) {
   return listPipelineRuns(cwd, limit);
 }
 
+export async function recoverStaleRunningRuns(
+  cwd: string,
+  olderThanMs = 6 * 60 * 60 * 1000
+) {
+  const runs = await listPipelineRuns(cwd, 200);
+  const now = Date.now();
+  const recovered: string[] = [];
+
+  for (const run of runs) {
+    if (run.status !== "running") {
+      continue;
+    }
+
+    const updatedAtMs = Date.parse(run.updatedAt ?? run.startedAt ?? run.createdAt);
+    if (Number.isNaN(updatedAtMs) || now - updatedAtMs < olderThanMs) {
+      continue;
+    }
+
+    const detail = await getPipelineRunDetail(cwd, run.runId);
+    const stepId =
+      run.currentStepId ??
+      detail?.steps.find((step) => step.status === "running")?.stepId ??
+      detail?.context.checkpoint.currentStepId ??
+      detail?.definition.steps[0];
+
+    if (!stepId) {
+      continue;
+    }
+
+    await markRunFailed(
+      cwd,
+      run.runId,
+      stepId,
+      `run recovered from stale running state after ${Math.floor(
+        olderThanMs / 60000
+      )} minutes without updates`,
+      "stale_run_recovered"
+    );
+    recovered.push(run.runId);
+  }
+
+  return recovered;
+}
+
+export async function syncPipelineDefinitions(cwd: string, projectId?: string) {
+  const pipelines = listPipelines(cwd, projectId);
+  for (const pipeline of pipelines) {
+    await upsertPipelineDefinition(cwd, {
+      pipelineId: pipeline.pipelineId,
+      projectId: pipeline.projectId,
+      profileId: pipeline.profileId,
+      displayName: pipeline.displayName,
+      pipeline: {
+        packageAlias: pipeline.packageAlias,
+        platform: pipeline.platform,
+        env: pipeline.env,
+        branch: pipeline.branch,
+      },
+      steps: pipeline.steps,
+    });
+  }
+  return pipelines;
+}
+
 export function listWorkspaces(cwd: string) {
   const workspaces = listWorkspaceConfigs(cwd);
   const pipelines = listPipelines(cwd);
@@ -465,13 +530,44 @@ export async function markRunFailed(
   message: string,
   category: string
 ) {
+  const endedAt = new Date().toISOString();
+  const detail = await getPipelineRunDetail(cwd, runId);
+
+  if (detail) {
+    const failedStep = detail.steps.find((step) => step.stepId === stepId);
+    if (failedStep) {
+      const nextStepState: StepState = {
+        ...failedStep,
+        status: "failed",
+        endedAt,
+        error: {
+          stepId,
+          message,
+          category,
+        },
+      };
+      detail.context.stepResults[stepId] = nextStepState;
+      detail.context.checkpoint = {
+        ...detail.context.checkpoint,
+        currentStepId: stepId,
+      };
+      await savePipelineRunContext(cwd, detail.context);
+      await updateStepState(
+        cwd,
+        runId,
+        nextStepState,
+        detail.definition.steps.findIndex((item) => item === stepId)
+      );
+    }
+  }
+
   await updateRunStatus(cwd, runId, {
     status: "failed",
     currentStepId: stepId,
     errorStepId: stepId,
     errorCategory: category,
     errorMessage: message,
-    endedAt: new Date().toISOString(),
+    endedAt,
   });
 }
 

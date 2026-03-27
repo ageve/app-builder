@@ -1,7 +1,8 @@
-import { createFileRoute, Link } from "@tanstack/react-router"
+import { createFileRoute } from "@tanstack/react-router"
 import { startTransition, useState } from "react"
 import { toast } from "sonner"
 import { JsonMonacoEditor } from "~/components/config/json-monaco-editor"
+import { PipelinesTable } from "~/components/dashboard/pipelines-table"
 import { StatusPill } from "~/components/dashboard/status-pill"
 import { WorkspaceSelectBar } from "~/components/navigation/select-bar"
 import { Button } from "~/components/ui/button"
@@ -67,6 +68,15 @@ function WorkspacePage() {
   const [draft, setDraft] = useState(config.content)
   const [savedDraft, setSavedDraft] = useState(config.content)
   const [saving, setSaving] = useState(false)
+  const sortedPipelines = [...detail.pipelines].sort((left, right) => {
+    return [
+      left.displayName.localeCompare(right.displayName),
+      left.platform.localeCompare(right.platform),
+      left.env.localeCompare(right.env),
+      left.branch.localeCompare(right.branch),
+      left.profileId.localeCompare(right.profileId),
+    ].find((value) => value !== 0) ?? 0
+  })
   const jsonError = getJsonErrorMessage(draft)
   const isDirty = draft !== savedDraft
 
@@ -114,41 +124,12 @@ function WorkspacePage() {
           <Card className="border-[#e6edf5] bg-white shadow-none">
             <CardHeader>
               <CardTitle className="text-lg text-[#111827]">Pipelines</CardTitle>
-              <CardDescription>In this workspace.</CardDescription>
+              <CardDescription>
+                One row per pipeline, with clear Platform, Env, Branch, and Steps metadata.
+              </CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-3">
-              {detail.pipelines.map((pipeline) => (
-                <Link
-                  key={pipeline.pipelineId}
-                  to="/pipelines/$pipelineId"
-                  params={{ pipelineId: pipeline.profileId }}
-                  className="rounded-md bg-[#f4f8ff] px-4 py-3"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-[#111827]">
-                        {pipeline.displayName}
-                      </p>
-                      <p className="mt-1 break-all text-xs text-[#94a3b8]">
-                        {pipeline.profileId}
-                      </p>
-                    </div>
-                    <p className="shrink-0 text-xs font-medium uppercase tracking-[0.18em] text-[#4f9cf9]">
-                      Open
-                    </p>
-                  </div>
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <StatusPill status={pipeline.platform} />
-                    <StatusPill status={pipeline.env} />
-                    <span className="rounded-full bg-white px-2.5 py-1 text-xs text-[#64748b] ring-1 ring-[#dce7f3]">
-                      {pipeline.branch}
-                    </span>
-                    <span className="rounded-full bg-white px-2.5 py-1 text-xs text-[#64748b] ring-1 ring-[#dce7f3]">
-                      {pipeline.steps.length} steps
-                    </span>
-                  </div>
-                </Link>
-              ))}
+            <CardContent>
+              <PipelinesTable pipelines={sortedPipelines} compact />
             </CardContent>
           </Card>
         </div>

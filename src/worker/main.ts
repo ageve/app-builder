@@ -16,6 +16,7 @@ import {
   markRunFailed,
   markRunStep,
   markRunSuccess,
+  recoverStaleRunningRuns,
   resumeBuild,
   retryBuild,
   savePipelineConfigDocument,
@@ -390,6 +391,19 @@ program
     const cwd = cwdOption(options.cwd);
     const host = String(options.host ?? "0.0.0.0");
     const port = Number(options.port ?? 4001);
+
+    const recovered = await recoverStaleRunningRuns(cwd);
+    if (recovered.length > 0) {
+      console.log(
+        JSON.stringify(
+          {
+            recoveredStaleRuns: recovered,
+          },
+          null,
+          2
+        )
+      );
+    }
 
     Bun.serve({
       hostname: host,

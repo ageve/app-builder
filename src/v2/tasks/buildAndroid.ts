@@ -1,19 +1,46 @@
-import { copySync, readdirSync } from "fs-extra";
+import { copySync, pathExistsSync, readdirSync, writeFileSync } from "fs-extra";
+import { homedir } from "node:os";
 import path, { resolve } from "path";
 import { $, cd } from "zx";
 import { setTaskName } from "../utils/common";
 
+function detectAndroidSdkRoot() {
+  const candidates = [
+    process.env.ANDROID_SDK_ROOT,
+    process.env.ANDROID_HOME,
+    resolve(homedir(), "Library", "Android", "sdk"),
+  ].filter((value): value is string => Boolean(value && value.trim()));
+
+  return candidates.find((candidate) => pathExistsSync(candidate));
+}
+
 async function buildAndroid(context: any, options?: { clean?: boolean }) {
   try {
     const { workspace, output, prepareEnv, logger, env } = context;
-    const { versionName, applicationId, envFileCache } =
-      prepareEnv;
+    const { versionName, applicationId, envFileCache } = prepareEnv;
     cd(resolve(workspace, "./android"));
     await $`pwd`;
+    const sdkRoot = detectAndroidSdkRoot();
+    if (!sdkRoot) {
+      throw new Error(
+        "Android SDK not found. Set ANDROID_SDK_ROOT or install the SDK under ~/Library/Android/sdk."
+      );
+    }
+
+    // Keep Gradle aligned with the local Android Studio SDK location.
+    writeFileSync(
+      resolve(workspace, "android", "local.properties"),
+      `sdk.dir=${sdkRoot}\n`,
+      "utf-8"
+    );
+
     $.env = {
       ...$.env,
       ENVFILE: envFileCache,
+      ANDROID_HOME: sdkRoot,
+      ANDROID_SDK_ROOT: sdkRoot,
     };
+    logger.info({ androidSdkRoot: sdkRoot });
     await $`echo $ENVFILE`;
     await $`chmod +x gradlew`;
     if (options?.clean) {

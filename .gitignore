@@ -21,3 +21,4 @@ apps/web/.vinxi
 .docker
 *.apk
 *.ipa
+configs

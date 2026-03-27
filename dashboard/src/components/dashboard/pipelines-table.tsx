@@ -44,17 +44,20 @@ export function PipelinesTable({
         {pipelines.map((pipeline) => (
           <TableRow key={pipeline.pipelineId} className="border-slate-100 hover:bg-slate-50">
             <TableCell>
-              <div>
-                <p className="font-medium text-slate-900">{pipeline.displayName}</p>
-                <p className="text-xs text-slate-500">{pipeline.profileId}</p>
-              </div>
+              <p className="font-medium text-slate-900">{pipeline.profileId}</p>
             </TableCell>
-            <TableCell className="text-slate-600">{pipeline.platform}</TableCell>
+            <TableCell>
+              <StatusPill status={pipeline.platform} />
+            </TableCell>
             <TableCell>
               <StatusPill status={pipeline.env} />
             </TableCell>
-            <TableCell className="text-slate-600">{pipeline.branch}</TableCell>
-            <TableCell className="text-slate-600">{pipeline.steps.length}</TableCell>
+            <TableCell className="text-slate-600">
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+                {pipeline.branch}
+              </span>
+            </TableCell>
+            <TableCell className="text-slate-600">{pipeline.steps.length} steps</TableCell>
             <TableCell className="text-right">
               <Link
                 to="/pipelines/$pipelineId"

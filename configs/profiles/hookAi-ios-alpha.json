@@ -12,7 +12,7 @@
     "branch": "alpha"
   },
   "files": {
-    "envFile": "envs/hugo-aiv-app/.env.hookAi.alpha.ios",
+    "envFile": "envs/hugo-aiv-app/.env.hookAi.alpha",
     "envConfigFile": "envs/hugo-aiv-app/.env.hookAi.xcconfig",
     "exportOptionsAdHoc": "envs/hugo-aiv-app/hookAi.ExportOptions.adHoc.plist"
   }

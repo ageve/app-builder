@@ -7,6 +7,7 @@
       "dependencies": {
         "@clack/prompts": "^0.11.0",
         "@duckdb/node-api": "^1.5.1-r.1",
+        "@duckdb/node-bindings-darwin-arm64": "^1.4.3-r.1",
         "@inquirer/prompts": "^3.3.0",
         "axios": "^1.12.2",
         "chalk": "^5.3.0",
@@ -70,6 +71,8 @@
     "@duckdb/node-api": ["@duckdb/node-api@1.5.1-r.1", "https://registry.npmmirror.com/@duckdb/node-api/-/node-api-1.5.1-r.1.tgz", { "dependencies": { "@duckdb/node-bindings": "1.5.1-r.1" } }, "sha512-8U8p44ZL4rJtUrgVaSLm2hOMk3XTwEgs5eJoxYiR6iQXKVEr8vi6z3Vrxhb61g9sgsEZIAmckD7e3zZ1lmPHYA=="],
 
     "@duckdb/node-bindings": ["@duckdb/node-bindings@1.5.1-r.1", "https://registry.npmmirror.com/@duckdb/node-bindings/-/node-bindings-1.5.1-r.1.tgz", { "optionalDependencies": { "@duckdb/node-bindings-darwin-arm64": "1.5.1-r.1", "@duckdb/node-bindings-darwin-x64": "1.5.1-r.1", "@duckdb/node-bindings-linux-arm64": "1.5.1-r.1", "@duckdb/node-bindings-linux-x64": "1.5.1-r.1", "@duckdb/node-bindings-win32-arm64": "1.5.1-r.1", "@duckdb/node-bindings-win32-x64": "1.5.1-r.1" } }, "sha512-3vmIlY/ACTLutlMup4F+D2Gzo+kiUoMaIL4TvM4x34cMqnKfsZ+4lMjqfSKYmdcgNGXYXwPwIYaJlvMRhU3Tbg=="],
+
+    "@duckdb/node-bindings-darwin-arm64": ["@duckdb/node-bindings-darwin-arm64@1.4.3-r.1", "https://registry.npmmirror.com/@duckdb/node-bindings-darwin-arm64/-/node-bindings-darwin-arm64-1.4.3-r.1.tgz", { "os": "darwin", "cpu": "arm64" }, "sha512-2dShpy8HmdLwfRLPI+KZaJXN+wA68gOsuAh//Q1C/X0tQbd97WxHo8u7lZqMhaJMvGaInVAxR+KoFSfG2M5jwA=="],
 
     "@duckdb/node-bindings-linux-arm64": ["@duckdb/node-bindings-linux-arm64@1.5.1-r.1", "https://registry.npmmirror.com/@duckdb/node-bindings-linux-arm64/-/node-bindings-linux-arm64-1.5.1-r.1.tgz", { "os": "linux", "cpu": "arm64" }, "sha512-b0tHCtC+GZnD6gJA+ldUwy8FhnugR1Uq0/LjLiusOQOoK5pRXyfiQjgIe/SiKSeE5iEr+FWUXEprSD81HOaaQg=="],
 

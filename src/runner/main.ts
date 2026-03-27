@@ -6,8 +6,10 @@ import {
   getBuildRunDetail,
   inspectConfig,
   listPipelines,
+  recoverStaleRunningRuns,
   resumeBuild,
   retryBuild,
+  syncPipelineDefinitions,
   startBuild,
 } from "../runtime/builds";
 
@@ -90,6 +92,30 @@ build
       triggerSource: triggerSourceOption(options.triggerSource),
     });
     console.log(JSON.stringify(detail, null, 2));
+  });
+
+build
+  .command("sync-pipelines")
+  .option("--project-id <projectId>")
+  .option("--cwd <cwd>")
+  .action(async (options) => {
+    const cwd = cwdOption(options.cwd);
+    const pipelines = await syncPipelineDefinitions(cwd, options.projectId);
+    console.log(JSON.stringify(pipelines, null, 2));
+  });
+
+build
+  .command("recover-stale-runs")
+  .option("--older-than-minutes <value>", "Consider running runs stale after N minutes", "360")
+  .option("--cwd <cwd>")
+  .action(async (options) => {
+    const cwd = cwdOption(options.cwd);
+    const olderThanMinutes = Number(options.olderThanMinutes ?? 360);
+    const recovered = await recoverStaleRunningRuns(
+      cwd,
+      olderThanMinutes * 60 * 1000
+    );
+    console.log(JSON.stringify({ recovered }, null, 2));
   });
 
 build

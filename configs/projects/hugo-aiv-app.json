@@ -1,7 +1,7 @@
 {
   "id": "hugo-aiv-app",
   "name": "Hugo AIV App",
-  "gitUri": "git@github.com:example/hugo-aiv-app.git",
+  "gitUri": "git@codeup.aliyun.com:6221b87488a0328818f13a3c/hugo/hugo-aiv-app.git",
   "defaults": {
     "workspaceRoot": "../app-builder-cache/projects",
     "outputRoot": "build",
@@ -9,25 +9,25 @@
     "cleanWorkspace": true
   },
   "appInfo": {
-    "name": "HookAI",
-    "slogan": "assistant"
+    "name": "钩子AI",
+    "slogan": "10秒做引流视频"
   },
   "fir": {
-    "apiKey": "fir-demo-api-key"
+    "apiKey": "c1fac02cef8a0e1db76349d81860cdd3"
   },
   "pgyer": {
-    "apiKey": "pgyer-demo-api-key",
+    "apiKey": "58d6056c6533a8459dfb775b4b8018a5",
     "buildType": "apk"
   },
   "uploadApi": {
-    "alpha": "https://example.com/storage/alpha",
-    "prod": "https://example.com/storage/prod"
+    "alpha": "https://hugoapia.yocdev.com/storage/upload",
+    "prod": "https://hugoapi.ctssvc.com/storage/upload"
   },
   "updateUrl": {
-    "alpha": "https://example.com/update/alpha",
-    "prod": "https://example.com/update/prod"
+    "alpha": "",
+    "prod": ""
   },
   "appStore": {
-    "keychain": "appstore-demo"
+    "keychain": "ACTIFLOWTACAECH_PROFILE"
   }
 }
