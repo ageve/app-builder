@@ -66,6 +66,7 @@ export function PipelineSelectBar({
   currentWorkspaceId = DEFAULT_WORKSPACE_ID,
   currentPipelineId,
   navigateOnPipelineChange = true,
+  onWorkspaceChange,
   onPipelineChange,
 }: {
   workspaces: WorkspaceOption[]
@@ -73,6 +74,7 @@ export function PipelineSelectBar({
   currentWorkspaceId?: string
   currentPipelineId?: string
   navigateOnPipelineChange?: boolean
+  onWorkspaceChange?: (workspaceId: string) => void
   onPipelineChange?: (pipelineId: string) => void
 }) {
   const router = useRouter()
@@ -136,7 +138,10 @@ export function PipelineSelectBar({
           label: workspace.name,
           description: workspace.workspaceId,
         }))}
-        onValueChange={setSelectedWorkspaceId}
+        onValueChange={(nextWorkspaceId) => {
+          setSelectedWorkspaceId(nextWorkspaceId)
+          onWorkspaceChange?.(nextWorkspaceId)
+        }}
         className="sm:max-w-sm"
         searchPlaceholder="Search workspace..."
         emptyMessage="No workspace found."
@@ -157,6 +162,7 @@ export function PipelineSelectBar({
             void router.navigate({
               to: "/pipelines/$pipelineId",
               params: { pipelineId: nextPipelineId },
+              search: { workspaceId: selectedWorkspaceId },
             })
           }
         }}

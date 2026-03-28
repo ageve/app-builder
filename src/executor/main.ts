@@ -49,6 +49,32 @@ async function runtimeFetch<T>(
   return response.json() as Promise<T>;
 }
 
+function isTransientRuntimeError(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const record = error as {
+    code?: unknown;
+    message?: unknown;
+    path?: unknown;
+  };
+  const code = typeof record.code === "string" ? record.code : "";
+  const message = typeof record.message === "string" ? record.message : "";
+  const path = typeof record.path === "string" ? record.path : "";
+
+  return (
+    path.includes("/api/executor/claim") &&
+    (
+      code === "ECONNRESET" ||
+      code === "ECONNREFUSED" ||
+      code === "EPIPE" ||
+      code === "ETIMEDOUT" ||
+      message.includes("socket connection was closed unexpectedly")
+    )
+  );
+}
+
 function createRemotePersistence(
   runtimeUrl: string,
   cwd: string
@@ -313,6 +339,10 @@ program
           console.log(JSON.stringify(result, null, 2));
         }
       } catch (error) {
+        if (!activeRun && isTransientRuntimeError(error)) {
+          await new Promise((resolvePromise) => setTimeout(resolvePromise, interval));
+          continue;
+        }
         console.error(error);
       }
       await new Promise((resolvePromise) => setTimeout(resolvePromise, interval));

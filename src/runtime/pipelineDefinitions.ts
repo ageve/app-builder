@@ -29,12 +29,12 @@ export function listPipelines(cwd: string, projectId?: string): PipelineListItem
       pipelineId: createPipelineId(profile.projectId, profile.id),
       projectId: profile.projectId,
       profileId: profile.id,
-      displayName: `${profile.pipeline.packageAlias} / ${profile.pipeline.platform} / ${profile.pipeline.env}`,
-      packageAlias: profile.pipeline.packageAlias,
-      platform: profile.pipeline.platform,
-      env: profile.pipeline.env,
-      branch: profile.pipeline.branch,
-      steps: getOrderedStepsForPlatform(profile.pipeline.platform),
+      displayName: `${profile.packageAlias} / ${profile.platform} / ${profile.env}`,
+      packageAlias: profile.packageAlias,
+      platform: profile.platform,
+      env: profile.env,
+      branch: profile.branch,
+      steps: getOrderedStepsForPlatform(profile.platform),
     }));
 }
 
@@ -44,7 +44,7 @@ export function inspectConfig(cwd: string, request: Omit<BuildStartRequest, "tri
     runId,
     projectId: request.projectId,
     profileId: request.profileId,
-    overrides: request.overrides ?? {},
+    args: request.args ?? {},
   });
 }
 

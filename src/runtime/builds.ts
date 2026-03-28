@@ -1,5 +1,6 @@
 import { ensureDirSync } from "fs-extra";
-import { resolve } from "node:path";
+import { rmSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import {
   BuildRequestSchema,
   BuildRetryRequest,
@@ -18,17 +19,22 @@ import {
 } from "./types";
 import { createPipelineDefinition, createRunId, inspectConfig, listPipelines } from "./pipelineDefinitions";
 import {
+  createPipelineConfig,
+  createWorkspaceConfig,
+  deletePipelineConfig,
+  deleteWorkspaceConfig,
   listWorkspaceConfigs,
   loadProjectConfig,
   readPipelineConfigText,
   readWorkspaceConfigText,
-  savePipelineConfigText,
   saveWorkspaceConfigText,
 } from "./config";
 import { getOrderedStepsForPlatform, stepDefinitions } from "./definitions";
 import {
   claimNextRunnableRun,
   createPipelineRun,
+  deletePipelineRuntimeData,
+  deleteWorkspaceRuntimeData,
   ensureLogFile,
   getDashboardStats,
   getPipelineRunDetail,
@@ -41,8 +47,64 @@ import {
   updateStepState,
 } from "./store";
 
+function removeRunArtifacts(
+  resources: Array<{
+    logFile: string;
+    workspace: string;
+    outputDir: string;
+  }>
+) {
+  const paths = new Set<string>();
+  for (const resource of resources) {
+    paths.add(dirname(resource.logFile));
+    paths.add(resource.workspace);
+    paths.add(resource.outputDir);
+  }
+  for (const path of paths) {
+    rmSync(path, { recursive: true, force: true });
+  }
+}
+
+function generatePipelineId(params: {
+  cwd: string;
+  workspaceId: string;
+  packageAlias: string;
+  platform: "android" | "iOS";
+  env: "alpha" | "production";
+}) {
+  const platformId = params.platform === "iOS" ? "ios" : "android";
+  const baseId = `${params.packageAlias}-${platformId}-${params.env}`;
+  const existingIds = new Set(
+    listPipelines(params.cwd, params.workspaceId).map((pipeline) => pipeline.profileId)
+  );
+
+  if (!existingIds.has(baseId)) {
+    return baseId;
+  }
+
+  let suffix = 2;
+  while (existingIds.has(`${baseId}-${suffix}`)) {
+    suffix += 1;
+  }
+  return `${baseId}-${suffix}`;
+}
+
 function stepDefinitionsForPipeline(stepIds: StepId[]): StepDefinition[] {
   return stepIds.map((stepId) => ({ ...stepDefinitions[stepId] }));
+}
+
+const ACTIVE_RUN_TIMEOUT_MS = 30 * 1000;
+
+function isPendingRunStatus(status: PipelineRunRecord["status"]) {
+  return (
+    status === "queued" ||
+    status === "resume_requested" ||
+    status === "retry_requested"
+  );
+}
+
+function isActiveRunStatus(status: PipelineRunRecord["status"]) {
+  return status === "running" || isPendingRunStatus(status);
 }
 
 function createRunContext(
@@ -69,6 +131,83 @@ function createRunContext(
   };
 }
 
+async function failRunIfStillPending(params: {
+  cwd: string;
+  runId: string;
+  message: string;
+  category: string;
+}) {
+  const run = await getPipelineRunRecord(params.cwd, params.runId);
+  if (!run || !isPendingRunStatus(run.status)) {
+    return false;
+  }
+
+  const detail = await getPipelineRunDetail(params.cwd, params.runId);
+  const stepId =
+    run.requestedStepId ??
+    detail?.context.checkpoint.currentStepId ??
+    detail?.definition.steps[0];
+
+  if (!stepId) {
+    return false;
+  }
+
+  await markRunFailed(
+    params.cwd,
+    params.runId,
+    stepId,
+    params.message,
+    params.category
+  );
+  return true;
+}
+
+function schedulePendingRunTimeout(cwd: string, runId: string, timeoutMs = ACTIVE_RUN_TIMEOUT_MS) {
+  const timer = setTimeout(() => {
+    void failRunIfStillPending({
+      cwd,
+      runId,
+      message: `run was not claimed by executor within ${Math.floor(timeoutMs / 1000)} seconds`,
+      category: "executor_claim_timeout",
+    });
+  }, timeoutMs);
+  timer.unref?.();
+}
+
+async function failRunIfQueueingIsBlocked(params: {
+  cwd: string;
+  runId: string;
+  projectId: string;
+  profileId: string;
+}) {
+  const activeRuns = (await listPipelineRuns(params.cwd, 200)).filter(
+    (run) =>
+      run.runId !== params.runId &&
+      run.projectId === params.projectId &&
+      run.profileId === params.profileId &&
+      isActiveRunStatus(run.status)
+  );
+
+  if (activeRuns.length === 0) {
+    return false;
+  }
+
+  const currentRun = await getPipelineRunDetail(params.cwd, params.runId);
+  const stepId = currentRun?.definition.steps[0];
+  if (!stepId) {
+    return false;
+  }
+
+  await markRunFailed(
+    params.cwd,
+    params.runId,
+    stepId,
+    `another run is already active for this pipeline (${activeRuns[0]!.runId}); queueing is disabled`,
+    "queueing_disabled"
+  );
+  return true;
+}
+
 function createRetryRequestPayload(
   detail: PipelineRunDetail,
   runId: string
@@ -77,7 +216,7 @@ function createRetryRequestPayload(
     runId,
     projectId: detail.context.request.projectId,
     profileId: detail.context.request.profileId,
-    overrides: detail.context.request.overrides ?? {},
+    args: detail.context.request.args ?? {},
   });
 }
 
@@ -162,7 +301,7 @@ async function queueRetryRun(params: {
     projectId: request.projectId,
     profileId: request.profileId,
     runId,
-    overrides: request.overrides,
+    args: request.args,
   });
   const context = createRunContext(request, definition.pipelineId, resolvedConfig);
   const { seededStepStates, seededUploads } =
@@ -191,6 +330,16 @@ async function queueRetryRun(params: {
     seededStepStates,
     seededUploads,
   });
+  if (
+    !(await failRunIfQueueingIsBlocked({
+      cwd: params.cwd,
+      runId,
+      projectId: request.projectId,
+      profileId: request.profileId,
+    }))
+  ) {
+    schedulePendingRunTimeout(params.cwd, runId);
+  }
   return (await getPipelineRunDetail(params.cwd, runId))!;
 }
 
@@ -229,7 +378,7 @@ export async function startBuild(cwd: string, input: BuildStartRequest) {
     runId,
     projectId: payload.projectId,
     profileId: payload.profileId,
-    overrides: payload.overrides ?? {},
+    args: payload.args ?? {},
   });
   const definition = createPipelineDefinition(cwd, request);
   const resolvedConfig = inspectConfig(cwd, {
@@ -247,6 +396,16 @@ export async function startBuild(cwd: string, input: BuildStartRequest) {
     triggerSource: payload.triggerSource,
     steps: stepDefinitionsForPipeline(definition.steps),
   });
+  if (
+    !(await failRunIfQueueingIsBlocked({
+      cwd,
+      runId,
+      projectId: request.projectId,
+      profileId: request.profileId,
+    }))
+  ) {
+    schedulePendingRunTimeout(cwd, runId);
+  }
   return (await getPipelineRunDetail(cwd, runId))!;
 }
 
@@ -275,6 +434,16 @@ export async function resumeBuild(cwd: string, input: BuildResumeRequest) {
   pruneRunContextFromStep(detail, payload.fromStep);
   await savePipelineRunContext(cwd, detail.context);
   await requestRunResume(cwd, payload.runId, payload.fromStep);
+  if (
+    !(await failRunIfQueueingIsBlocked({
+      cwd,
+      runId: payload.runId,
+      projectId: detail.run.projectId,
+      profileId: detail.run.profileId,
+    }))
+  ) {
+    schedulePendingRunTimeout(cwd, payload.runId);
+  }
   return (await getPipelineRunDetail(cwd, payload.runId))!;
 }
 
@@ -359,6 +528,51 @@ export async function recoverStaleRunningRuns(
         olderThanMs / 60000
       )} minutes without updates`,
       "stale_run_recovered"
+    );
+    recovered.push(run.runId);
+  }
+
+  return recovered;
+}
+
+export async function recoverStaleQueuedRuns(
+  cwd: string,
+  olderThanMs = 30 * 60 * 1000
+) {
+  const runs = await listPipelineRuns(cwd, 200);
+  const now = Date.now();
+  const recovered: string[] = [];
+
+  for (const run of runs) {
+    if (
+      run.status !== "queued" &&
+      run.status !== "resume_requested" &&
+      run.status !== "retry_requested"
+    ) {
+      continue;
+    }
+
+    const updatedAtMs = Date.parse(run.updatedAt ?? run.createdAt);
+    if (Number.isNaN(updatedAtMs) || now - updatedAtMs < olderThanMs) {
+      continue;
+    }
+
+    const detail = await getPipelineRunDetail(cwd, run.runId);
+    const stepId =
+      run.requestedStepId ??
+      detail?.context.checkpoint.currentStepId ??
+      detail?.definition.steps[0];
+
+    if (!stepId) {
+      continue;
+    }
+
+    await markRunFailed(
+      cwd,
+      run.runId,
+      stepId,
+      `run expired in queue after ${Math.floor(olderThanMs / 60000)} minutes without executor claim`,
+      "stale_queue_recovered"
     );
     recovered.push(run.runId);
   }
@@ -477,6 +691,51 @@ export function saveWorkspaceConfigDocument(
   };
 }
 
+export async function createWorkspaceDocument(
+  cwd: string,
+  input: {
+    workspaceId: string;
+    name: string;
+    gitUri: string;
+  }
+) {
+  const workspace = createWorkspaceConfig(cwd, {
+    id: input.workspaceId,
+    name: input.name,
+    gitUri: input.gitUri,
+    pipelineOptions: {
+      gitUri: input.gitUri,
+      workspaceRoot: "../app-builder-cache/projects",
+      outputRoot: "build",
+      runRoot: ".runs",
+      cleanWorkspace: true,
+    },
+    defaults: {
+      workspaceRoot: "../app-builder-cache/projects",
+      outputRoot: "build",
+      runRoot: ".runs",
+      cleanWorkspace: true,
+    },
+  });
+  await syncPipelineDefinitions(cwd);
+  return {
+    workspaceId: workspace.id,
+    name: workspace.name,
+    content: readWorkspaceConfigText(cwd, workspace.id),
+  };
+}
+
+export async function deleteWorkspaceDocument(cwd: string, workspaceId: string) {
+  const runtimeData = await deleteWorkspaceRuntimeData(cwd, workspaceId);
+  const result = deleteWorkspaceConfig(cwd, workspaceId);
+  removeRunArtifacts(runtimeData.deletedRuns);
+  await syncPipelineDefinitions(cwd);
+  return {
+    ...result,
+    deletedRunIds: runtimeData.deletedRuns.map((run) => run.runId),
+  };
+}
+
 export function getPipelineConfigDocument(cwd: string, profileId: string) {
   return {
     pipelineId: profileId,
@@ -484,15 +743,49 @@ export function getPipelineConfigDocument(cwd: string, profileId: string) {
   };
 }
 
-export function savePipelineConfigDocument(
+export async function createPipelineDocument(
   cwd: string,
-  profileId: string,
-  content: string
+  input: {
+    workspaceId: string;
+    pipelineId?: string;
+    packageAlias: string;
+    platform: "android" | "iOS";
+    env: "alpha" | "production";
+    branch: string;
+  }
 ) {
-  const pipeline = savePipelineConfigText(cwd, profileId, content);
+  const pipelineId =
+    input.pipelineId?.trim() ||
+    generatePipelineId({
+      cwd,
+      workspaceId: input.workspaceId,
+      packageAlias: input.packageAlias,
+      platform: input.platform,
+      env: input.env,
+    });
+  const pipeline = createPipelineConfig(cwd, {
+    id: pipelineId,
+    projectId: input.workspaceId,
+    packageAlias: input.packageAlias,
+    platform: input.platform,
+    env: input.env,
+    branch: input.branch,
+  });
+  await syncPipelineDefinitions(cwd, input.workspaceId);
   return {
     pipelineId: pipeline.id,
-    content: readPipelineConfigText(cwd, profileId),
+    content: readPipelineConfigText(cwd, pipeline.id),
+  };
+}
+
+export async function deletePipelineDocument(cwd: string, profileId: string) {
+  const runtimeData = await deletePipelineRuntimeData(cwd, profileId);
+  const result = deletePipelineConfig(cwd, profileId);
+  removeRunArtifacts(runtimeData.deletedRuns);
+  await syncPipelineDefinitions(cwd);
+  return {
+    ...result,
+    deletedRunIds: runtimeData.deletedRuns.map((run) => run.runId),
   };
 }
 

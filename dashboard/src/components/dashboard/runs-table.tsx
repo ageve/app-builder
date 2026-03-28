@@ -52,8 +52,7 @@ export function RunsTable({
           <TableHead>Step</TableHead>
           <TableHead>Started</TableHead>
           <TableHead>Trigger</TableHead>
-          <TableHead>Error</TableHead>
-          <TableHead className="text-right">Open</TableHead>
+          <TableHead className="text-right">Action</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -95,10 +94,7 @@ export function RunsTable({
             </TableCell>
             <TableCell className="text-slate-600">{formatDate(run.startedAt)}</TableCell>
             <TableCell className="text-slate-600">{run.triggerSource}</TableCell>
-            <TableCell className="max-w-[260px] truncate text-slate-500">
-              {run.errorMessage ?? "—"}
-            </TableCell>
-            <TableCell className="text-right">
+            <TableCell className="whitespace-nowrap text-right">
               <Link
                 to="/runs/$runId"
                 params={{ runId: run.runId }}

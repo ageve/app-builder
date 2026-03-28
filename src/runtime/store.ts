@@ -663,6 +663,115 @@ export async function getPipelineRunDetail(cwd: string, runId: string) {
   } satisfies PipelineRunDetail;
 }
 
+type DeletedRunResource = {
+  runId: string;
+  logFile: string;
+  workspace: string;
+  outputDir: string;
+};
+
+async function listDeletedRunResources(
+  cwd: string,
+  whereClause: string,
+  values: Record<string, unknown>
+) {
+  const rows = await queryRows<Record<string, unknown>>(
+    cwd,
+    `
+      SELECT pr.run_id, prc.log_file, prc.workspace, prc.output_dir
+      FROM pipeline_runs pr
+      JOIN pipeline_run_context prc ON pr.run_id = prc.run_id
+      WHERE ${whereClause}
+    `,
+    values
+  );
+
+  return rows.map((row) => ({
+    runId: String(row.run_id),
+    logFile: String(row.log_file),
+    workspace: String(row.workspace),
+    outputDir: String(row.output_dir),
+  })) as DeletedRunResource[];
+}
+
+async function deleteRunsByWhereClause(
+  cwd: string,
+  whereClause: string,
+  values: Record<string, unknown>
+) {
+  const deletedRuns = await listDeletedRunResources(cwd, whereClause, values);
+
+  await execSql(
+    cwd,
+    `
+      DELETE FROM pipeline_upload_records
+      WHERE run_id IN (SELECT run_id FROM pipeline_runs WHERE ${whereClause})
+    `,
+    values
+  );
+  await execSql(
+    cwd,
+    `
+      DELETE FROM pipeline_artifacts
+      WHERE run_id IN (SELECT run_id FROM pipeline_runs WHERE ${whereClause})
+    `,
+    values
+  );
+  await execSql(
+    cwd,
+    `
+      DELETE FROM pipeline_step_runs
+      WHERE run_id IN (SELECT run_id FROM pipeline_runs WHERE ${whereClause})
+    `,
+    values
+  );
+  await execSql(
+    cwd,
+    `
+      DELETE FROM pipeline_run_context
+      WHERE run_id IN (SELECT run_id FROM pipeline_runs WHERE ${whereClause})
+    `,
+    values
+  );
+  await execSql(cwd, `DELETE FROM pipeline_runs WHERE ${whereClause}`, values);
+
+  return deletedRuns;
+}
+
+export async function deleteWorkspaceRuntimeData(cwd: string, projectId: string) {
+  const deletedRuns = await deleteRunsByWhereClause(cwd, "project_id = $projectId", {
+    projectId,
+  });
+  const definitionRows = await queryRows<Record<string, unknown>>(
+    cwd,
+    `SELECT COUNT(*) AS count FROM pipeline_definitions WHERE project_id = $projectId`,
+    { projectId }
+  );
+  await execSql(
+    cwd,
+    `DELETE FROM pipeline_definitions WHERE project_id = $projectId`,
+    { projectId }
+  );
+  return {
+    deletedRuns,
+    deletedPipelineDefinitions: Number(definitionRows[0]?.count ?? 0),
+  };
+}
+
+export async function deletePipelineRuntimeData(cwd: string, profileId: string) {
+  const deletedRuns = await deleteRunsByWhereClause(cwd, "profile_id = $profileId", {
+    profileId,
+  });
+  await execSql(
+    cwd,
+    `DELETE FROM pipeline_definitions WHERE profile_id = $profileId`,
+    { profileId }
+  );
+  return {
+    deletedRuns,
+  };
+}
+
 export async function ensureLogFile(filePath: string) {
   ensureDirSync(dirname(filePath));
   writeFileSync(filePath, "", { flag: "a" });

@@ -2,6 +2,13 @@
   "id": "hugo-aiv-app",
   "name": "Hugo AIV App",
   "gitUri": "git@codeup.aliyun.com:6221b87488a0328818f13a3c/hugo/hugo-aiv-app.git",
+  "pipelineOptions": {
+    "gitUri": "git@codeup.aliyun.com:6221b87488a0328818f13a3c/hugo/hugo-aiv-app.git",
+    "workspaceRoot": "../app-builder-cache/projects",
+    "outputRoot": "build",
+    "runRoot": ".runs",
+    "cleanWorkspace": true
+  },
   "defaults": {
     "workspaceRoot": "../app-builder-cache/projects",
     "outputRoot": "build",

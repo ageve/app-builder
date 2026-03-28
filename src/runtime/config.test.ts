@@ -16,28 +16,46 @@ afterEach(() => {
 });
 
 describe("resolveRunConfigFromRequest", () => {
-  test("resolves repo-backed profiles deterministically", () => {
+  test("resolves repo-backed pipelines deterministically", () => {
     const request = {
       runId: "deterministic-run",
       projectId: "hugo-aiv-app",
       profileId: "hookAi-android-alpha",
-      overrides: {},
+      args: {},
     };
     const first = resolveRunConfigFromRequest(process.cwd(), request);
     const second = resolveRunConfigFromRequest(process.cwd(), request);
     expect(first).toEqual(second);
     expect(first.pipeline.platform).toBe("android");
-    expect(first.source.templates).toEqual([
-      "android-alpha-base",
-      "hookai-brand-base",
-    ]);
+    expect(first.source).toEqual({
+      workspaceId: "hugo-aiv-app",
+      profileId: "hookAi-android-alpha",
+    });
   });
 
-  test("fails when referenced files are missing", () => {
+  test("derives files from workspace plus pipeline selection", () => {
+    const resolved = resolveRunConfigFromRequest(process.cwd(), {
+      runId: "derived-files-run",
+      projectId: "hugo-aiv-app",
+      profileId: "hookAi-ios-production",
+      args: {},
+    });
+
+    expect(resolved.files.envFile).toContain(
+      "envs/hugo-aiv-app/.env.hookAi.production"
+    );
+    expect(resolved.files.envConfigFile).toContain(
+      "envs/hugo-aiv-app/.env.hookAi.xcconfig"
+    );
+    expect(resolved.files.exportOptionsAppStore).toContain(
+      "envs/hugo-aiv-app/hookAi.ExportOptions.appstore.plist"
+    );
+  });
+
+  test("fails when derived files are missing", () => {
     const root = resolve(tmpdir(), `app-builder-config-test-${Date.now()}`);
     tempRoots.push(root);
     mkdirSync(resolve(root, "configs/projects"), { recursive: true });
-    mkdirSync(resolve(root, "configs/templates"), { recursive: true });
     mkdirSync(resolve(root, "configs/profiles"), { recursive: true });
 
     writeFileSync(
@@ -46,18 +64,8 @@ describe("resolveRunConfigFromRequest", () => {
         id: "demo",
         name: "Demo",
         gitUri: "git@github.com:example/demo.git",
-        defaults: {},
-      })
-    );
-    writeFileSync(
-      resolve(root, "configs/templates/android.json"),
-      JSON.stringify({
-        id: "android",
-        kind: "pipeline-template",
-        pipeline: {
-          platform: "android",
-          env: "alpha",
-          branch: "main",
+        pipelineOptions: {
+          gitUri: "git@github.com:example/demo.git",
         },
       })
     );
@@ -66,17 +74,10 @@ describe("resolveRunConfigFromRequest", () => {
       JSON.stringify({
         id: "demo-profile",
         projectId: "demo",
-        extends: ["android"],
-        pipeline: {
-          packageAlias: "demo",
-          platform: "android",
-          env: "alpha",
-          branch: "main",
-        },
-        files: {
-          envFile: "envs/demo/.env.alpha",
-          envPropertiesFile: "envs/demo/.env.properties",
-        },
+        packageAlias: "demo",
+        platform: "android",
+        env: "alpha",
+        branch: "main",
       })
     );
 
@@ -85,9 +86,28 @@ describe("resolveRunConfigFromRequest", () => {
         runId: "missing-file-run",
         projectId: "demo",
         profileId: "demo-profile",
-        overrides: {},
+        args: {},
       })
     ).toThrow("envFile does not exist");
+  });
+
+  test("args cannot override pipeline branch, platform, or env", () => {
+    const resolved = resolveRunConfigFromRequest(process.cwd(), {
+      runId: "args-run",
+      projectId: "hugo-aiv-app",
+      profileId: "hookAi-android-alpha",
+      args: {
+        autoVersionCode: true,
+        branch: "should-not-apply",
+        env: "production",
+        platform: "iOS",
+      },
+    });
+
+    expect(resolved.pipeline.branch).toBe("alpha");
+    expect(resolved.pipeline.env).toBe("alpha");
+    expect(resolved.pipeline.platform).toBe("android");
+    expect(resolved.args.autoVersionCode).toBe(true);
   });
 
   test("can rebase a resolved config to a different cwd", () => {
@@ -95,7 +115,7 @@ describe("resolveRunConfigFromRequest", () => {
       runId: "rebase-run",
       projectId: "hugo-aiv-app",
       profileId: "hookAi-android-alpha",
-      overrides: {},
+      args: {},
     });
 
     const rebased = adaptResolvedRunConfigToCwd(
@@ -122,6 +142,7 @@ describe("resolveRunConfigFromRequest", () => {
         env: "alpha",
         branch: "alpha",
       },
+      args: {},
       gitUri: "git@github.com:example/hugo-aiv-app.git",
       defaults: {
         rootCwd: "/workspace/app-builder",
@@ -134,6 +155,8 @@ describe("resolveRunConfigFromRequest", () => {
         envFile: "/workspace/app-builder/envs/hugo-aiv-app/.env.hookAi.alpha",
         envPropertiesFile:
           "/workspace/app-builder/envs/hugo-aiv-app/.env.hookAi.properties",
+        agconnectFile:
+          "/workspace/app-builder/envs/hugo-aiv-app/hookAi-agconnect-services.json",
       },
       flags: {
         autoVersionCode: false,
@@ -141,8 +164,8 @@ describe("resolveRunConfigFromRequest", () => {
         cleanWorkspace: true,
       },
       features: {
-        codemodAndroid: false,
-        copyToFileBrowser: false,
+        codemodAndroid: true,
+        copyToFileBrowser: true,
         syncArchive: false,
       },
       build: {
@@ -154,7 +177,8 @@ describe("resolveRunConfigFromRequest", () => {
       },
       uploads: {},
       source: {
-        templates: [],
+        workspaceId: "hugo-aiv-app",
+        profileId: "hookAi-android-alpha",
       },
     });
 

@@ -16,9 +16,124 @@ export const stepIds = [
   "finalize_logs",
 ] as const;
 
+type UnknownRecord = Record<string, unknown>;
+
+function asRecord(value: unknown): UnknownRecord | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  return value as UnknownRecord;
+}
+
+function normalizeArgsFromSources(sources: Array<UnknownRecord | undefined>) {
+  const args: UnknownRecord = {};
+  for (const source of sources) {
+    if (!source) {
+      continue;
+    }
+    for (const key of ["autoVersionCode", "legacyVersioning"] as const) {
+      if (typeof source[key] === "boolean") {
+        args[key] = source[key];
+      }
+    }
+  }
+  return args;
+}
+
+function normalizeBuildProfileInput(input: unknown) {
+  const record = asRecord(input);
+  if (!record) {
+    return input;
+  }
+
+  const pipeline = asRecord(record.pipeline);
+  if (!pipeline) {
+    return input;
+  }
+
+  return {
+    ...record,
+    packageAlias: record.packageAlias ?? pipeline.packageAlias,
+    platform: record.platform ?? pipeline.platform,
+    env: record.env ?? pipeline.env,
+    branch: record.branch ?? pipeline.branch,
+  };
+}
+
+function normalizeRequestLikeInput(input: unknown) {
+  const record = asRecord(input);
+  if (!record) {
+    return input;
+  }
+
+  const overrides = asRecord(record.overrides);
+  const explicitArgs = asRecord(record.args);
+
+  return {
+    ...record,
+    args: normalizeArgsFromSources([
+      overrides,
+      record,
+      explicitArgs,
+    ]),
+  };
+}
+
+function normalizeResolvedRunConfigInput(input: unknown) {
+  const record = asRecord(input);
+  if (!record) {
+    return input;
+  }
+
+  const flags = asRecord(record.flags);
+  const source = asRecord(record.source);
+  const args = asRecord(record.args);
+
+  return {
+    ...record,
+    args:
+      args ??
+      normalizeArgsFromSources([
+        flags
+          ? {
+              autoVersionCode: flags.autoVersionCode,
+              legacyVersioning: flags.legacyVersioning,
+            }
+          : undefined,
+      ]),
+    source: {
+      workspaceId:
+        typeof source?.workspaceId === "string"
+          ? source.workspaceId
+          : String(record.projectId ?? ""),
+      profileId:
+        typeof source?.profileId === "string"
+          ? source.profileId
+          : String(record.profileId ?? ""),
+    },
+  };
+}
+
 export type Platform = (typeof platforms)[number];
 export type RuntimeEnv = (typeof envs)[number];
 export type StepId = (typeof stepIds)[number];
+
+export const ProjectPipelineOptionsSchema = z
+  .object({
+    gitUri: z.string().optional(),
+    workspaceRoot: z.string().optional(),
+    outputRoot: z.string().optional(),
+    runRoot: z.string().optional(),
+    cleanWorkspace: z.boolean().optional(),
+  })
+  .default({});
+
+export const PipelineSelectionSchema = z.object({
+  packageAlias: z.string(),
+  platform: z.enum(platforms),
+  env: z.enum(envs),
+  branch: z.string(),
+});
 
 export const ProjectConfigSchema = z.object({
   id: z.string(),
@@ -32,6 +147,7 @@ export const ProjectConfigSchema = z.object({
       cleanWorkspace: z.boolean().optional(),
     })
     .default({}),
+  pipelineOptions: ProjectPipelineOptionsSchema,
   appInfo: z
     .object({
       name: z.string(),
@@ -68,168 +184,107 @@ export const ProjectConfigSchema = z.object({
     .optional(),
 });
 
-export const ConfigTemplateSchema = z.object({
-  id: z.string(),
-  kind: z.literal("pipeline-template").default("pipeline-template"),
-  pipeline: z
-    .object({
-      packageAlias: z.string().optional(),
-      platform: z.enum(platforms).optional(),
-      env: z.enum(envs).optional(),
-      branch: z.string().optional(),
-    })
-    .default({}),
-  files: z
-    .object({
-      envFile: z.string().optional(),
+export const BuildArgsSchema = z
+  .object({
+    autoVersionCode: z.boolean().optional(),
+    legacyVersioning: z.boolean().optional(),
+  })
+  .catchall(z.unknown());
+
+export const BuildProfileSchema = z.preprocess(
+  normalizeBuildProfileInput,
+  z.object({
+    id: z.string(),
+    projectId: z.string(),
+    packageAlias: PipelineSelectionSchema.shape.packageAlias,
+    platform: PipelineSelectionSchema.shape.platform,
+    env: PipelineSelectionSchema.shape.env,
+    branch: PipelineSelectionSchema.shape.branch,
+  })
+);
+
+export const BuildRequestSchema = z.preprocess(
+  normalizeRequestLikeInput,
+  z.object({
+    runId: z.string().min(1),
+    projectId: z.string(),
+    profileId: z.string(),
+    args: BuildArgsSchema.default({}),
+  })
+);
+
+export const ResolvedRunConfigSchema = z.preprocess(
+  normalizeResolvedRunConfigInput,
+  z.object({
+    runId: z.string(),
+    projectId: z.string(),
+    projectName: z.string(),
+    profileId: z.string(),
+    pipeline: PipelineSelectionSchema,
+    args: BuildArgsSchema.default({}),
+    gitUri: z.string(),
+    defaults: z.object({
+      rootCwd: z.string(),
+      workspace: z.string(),
+      outputDir: z.string(),
+      runDir: z.string(),
+      logFile: z.string(),
+    }),
+    files: z.object({
+      envFile: z.string(),
       envPropertiesFile: z.string().optional(),
       envConfigFile: z.string().optional(),
       exportOptionsAdHoc: z.string().optional(),
       exportOptionsAppStore: z.string().optional(),
       agconnectFile: z.string().optional(),
-    })
-    .default({}),
-  flags: z
-    .object({
-      autoVersionCode: z.boolean().optional(),
-      legacyVersioning: z.boolean().optional(),
-      cleanWorkspace: z.boolean().optional(),
-    })
-    .default({}),
-  features: z
-    .object({
-      codemodAndroid: z.boolean().optional(),
-      copyToFileBrowser: z.boolean().optional(),
-      syncArchive: z.boolean().optional(),
-    })
-    .default({}),
-  build: z
-    .object({
-      iosProjectName: z.string().optional(),
-      iosScheme: z.string().optional(),
-      iosBuildType: z.string().optional(),
-      ipaName: z.string().optional(),
-    })
-    .default({}),
-  uploads: z
-    .object({
-      fir: z.boolean().optional(),
-      pgyer: z.boolean().optional(),
-      qiniu: z.boolean().optional(),
-    })
-    .default({}),
-});
-
-export const BuildProfileSchema = z.object({
-  id: z.string(),
-  projectId: z.string(),
-  extends: z.array(z.string()).default([]),
-  pipeline: z.object({
-    packageAlias: z.string(),
-    platform: z.enum(platforms),
-    env: z.enum(envs),
-    branch: z.string(),
-  }),
-  files: ConfigTemplateSchema.shape.files.default({}),
-  flags: ConfigTemplateSchema.shape.flags.default({}),
-  features: ConfigTemplateSchema.shape.features.default({}),
-  build: ConfigTemplateSchema.shape.build.default({}),
-  uploads: ConfigTemplateSchema.shape.uploads.default({}),
-});
-
-export const BuildRequestSchema = z.object({
-  runId: z.string().min(1),
-  projectId: z.string(),
-  profileId: z.string(),
-  overrides: z
-    .object({
-      branch: z.string().optional(),
-      autoVersionCode: z.boolean().optional(),
-      legacyVersioning: z.boolean().optional(),
-      runtimeConfig: z.record(z.string(), z.unknown()).optional(),
-      uploads: z
+    }),
+    flags: z.object({
+      autoVersionCode: z.boolean(),
+      legacyVersioning: z.boolean(),
+      cleanWorkspace: z.boolean(),
+    }),
+    features: z.object({
+      codemodAndroid: z.boolean(),
+      copyToFileBrowser: z.boolean(),
+      syncArchive: z.boolean(),
+    }),
+    build: z.object({
+      iosProjectName: z.string(),
+      iosScheme: z.string(),
+      iosBuildType: z.string(),
+      ipaName: z.string(),
+      distributions: z.array(z.enum(["adHoc", "appStore"])),
+    }),
+    uploads: z.object({
+      fir: z
         .object({
-          fir: z.boolean().optional(),
-          pgyer: z.boolean().optional(),
-          qiniu: z.boolean().optional(),
+          enabled: z.boolean(),
+          apiKey: z.string().optional(),
         })
         .optional(),
-    })
-    .default({}),
-});
-
-export const ResolvedRunConfigSchema = z.object({
-  runId: z.string(),
-  projectId: z.string(),
-  projectName: z.string(),
-  profileId: z.string(),
-  pipeline: z.object({
-    packageAlias: z.string(),
-    platform: z.enum(platforms),
-    env: z.enum(envs),
-    branch: z.string(),
-  }),
-  gitUri: z.string(),
-  defaults: z.object({
-    rootCwd: z.string(),
-    workspace: z.string(),
-    outputDir: z.string(),
-    runDir: z.string(),
-    logFile: z.string(),
-  }),
-  files: z.object({
-    envFile: z.string(),
-    envPropertiesFile: z.string().optional(),
-    envConfigFile: z.string().optional(),
-    exportOptionsAdHoc: z.string().optional(),
-    exportOptionsAppStore: z.string().optional(),
-    agconnectFile: z.string().optional(),
-  }),
-  flags: z.object({
-    autoVersionCode: z.boolean(),
-    legacyVersioning: z.boolean(),
-    cleanWorkspace: z.boolean(),
-  }),
-  features: z.object({
-    codemodAndroid: z.boolean(),
-    copyToFileBrowser: z.boolean(),
-    syncArchive: z.boolean(),
-  }),
-  build: z.object({
-    iosProjectName: z.string(),
-    iosScheme: z.string(),
-    iosBuildType: z.string(),
-    ipaName: z.string(),
-    distributions: z.array(z.enum(["adHoc", "appStore"])),
-  }),
-  uploads: z.object({
-    fir: z
-      .object({
-        enabled: z.boolean(),
-        apiKey: z.string().optional(),
-      })
-      .optional(),
-    pgyer: z
-      .object({
-        enabled: z.boolean(),
-        apiKey: z.string().optional(),
-        buildType: z.literal("apk").optional(),
-      })
-      .optional(),
-    qiniu: z
-      .object({
-        enabled: z.boolean(),
-        url: z.string().optional(),
-        key: z.string().optional(),
-      })
-      .optional(),
-  }),
-  appInfo: ProjectConfigSchema.shape.appInfo.optional(),
-  appStore: ProjectConfigSchema.shape.appStore.optional(),
-  source: z.object({
-    templates: z.array(z.string()),
-  }),
-});
+      pgyer: z
+        .object({
+          enabled: z.boolean(),
+          apiKey: z.string().optional(),
+          buildType: z.literal("apk").optional(),
+        })
+        .optional(),
+      qiniu: z
+        .object({
+          enabled: z.boolean(),
+          url: z.string().optional(),
+          key: z.string().optional(),
+        })
+        .optional(),
+    }),
+    appInfo: ProjectConfigSchema.shape.appInfo.optional(),
+    appStore: ProjectConfigSchema.shape.appStore.optional(),
+    source: z.object({
+      workspaceId: z.string(),
+      profileId: z.string(),
+    }),
+  })
+);
 
 export const StepStatusSchema = z.enum([
   "pending",
@@ -305,8 +360,9 @@ export const RunStateSchema = z.object({
   steps: z.record(z.string(), StepStateSchema).default({}),
 });
 
+export type ProjectPipelineOptions = z.infer<typeof ProjectPipelineOptionsSchema>;
 export type ProjectConfig = z.infer<typeof ProjectConfigSchema>;
-export type ConfigTemplate = z.infer<typeof ConfigTemplateSchema>;
+export type BuildArgs = z.infer<typeof BuildArgsSchema>;
 export type BuildProfile = z.infer<typeof BuildProfileSchema>;
 export type BuildRequest = z.infer<typeof BuildRequestSchema>;
 export type ResolvedRunConfig = z.infer<typeof ResolvedRunConfigSchema>;
@@ -356,7 +412,7 @@ export const PipelineDefinitionSchema = z.object({
   projectId: z.string(),
   profileId: z.string(),
   displayName: z.string(),
-  pipeline: ResolvedRunConfigSchema.shape.pipeline,
+  pipeline: PipelineSelectionSchema,
   steps: z.array(z.enum(stepIds)),
 });
 
@@ -379,13 +435,16 @@ export const PipelineRunContextSchema = z.object({
   outputDir: z.string(),
 });
 
-export const BuildStartRequestSchema = z.object({
-  projectId: z.string(),
-  profileId: z.string(),
-  runId: z.string().optional(),
-  overrides: BuildRequestSchema.shape.overrides.default({}),
-  triggerSource: TriggerSourceSchema.default("cli"),
-});
+export const BuildStartRequestSchema = z.preprocess(
+  normalizeRequestLikeInput,
+  z.object({
+    projectId: z.string(),
+    profileId: z.string(),
+    runId: z.string().optional(),
+    args: BuildArgsSchema.default({}),
+    triggerSource: TriggerSourceSchema.default("cli"),
+  })
+);
 
 export const BuildResumeRequestSchema = z.object({
   runId: z.string(),

@@ -4,6 +4,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   claimNextBuildRun,
+  createPipelineDocument,
+  createWorkspaceDocument,
+  deletePipelineDocument,
+  deleteWorkspaceDocument,
   getBuildDashboard,
   getBuildRunDetail,
   getPipelineConfigDocument,
@@ -16,10 +20,10 @@ import {
   markRunFailed,
   markRunStep,
   markRunSuccess,
+  recoverStaleQueuedRuns,
   recoverStaleRunningRuns,
   resumeBuild,
   retryBuild,
-  savePipelineConfigDocument,
   saveWorkspaceConfigDocument,
   startBuild,
 } from "../runtime/builds";
@@ -126,21 +130,13 @@ async function handleRequest(request: Request, cwd: string) {
       const body = (await request.json()) as {
         projectId: string;
         profileId: string;
-        branch?: string;
-        autoVersionCode?: boolean;
-        legacyVersioning?: boolean;
-        runtimeConfig?: Record<string, unknown>;
+        args?: Record<string, unknown>;
       };
       return jsonResponse(
         inspectConfig(cwd, {
           projectId: body.projectId,
           profileId: body.profileId,
-          overrides: {
-            branch: body.branch,
-            autoVersionCode: body.autoVersionCode,
-            legacyVersioning: body.legacyVersioning,
-            runtimeConfig: body.runtimeConfig,
-          },
+          args: body.args ?? {},
         })
       );
     }
@@ -153,21 +149,13 @@ async function handleRequest(request: Request, cwd: string) {
       const body = (await request.json()) as {
         projectId: string;
         profileId: string;
-        branch?: string;
-        autoVersionCode?: boolean;
-        legacyVersioning?: boolean;
-        runtimeConfig?: Record<string, unknown>;
+        args?: Record<string, unknown>;
       };
       return jsonResponse(
         await startBuild(cwd, {
           projectId: body.projectId,
           profileId: body.profileId,
-          overrides: {
-            branch: body.branch,
-            autoVersionCode: body.autoVersionCode,
-            legacyVersioning: body.legacyVersioning,
-            runtimeConfig: body.runtimeConfig,
-          },
+          args: body.args ?? {},
           triggerSource: "web",
         })
       );
@@ -191,10 +179,46 @@ async function handleRequest(request: Request, cwd: string) {
       return jsonResponse(saveWorkspaceConfigDocument(cwd, workspaceId, body.content));
     }
 
+    if (request.method === "POST" && path === "/api/workspaces") {
+      const body = (await request.json()) as {
+        workspaceId: string;
+        name: string;
+        gitUri: string;
+      };
+      return jsonResponse(await createWorkspaceDocument(cwd, body), 201);
+    }
+
+    if (request.method === "DELETE" && workspaceMatch) {
+      const workspaceId = decodeURIComponent(workspaceMatch[1]!);
+      return jsonResponse(await deleteWorkspaceDocument(cwd, workspaceId));
+    }
+
     const workspacePipelinesMatch = path.match(/^\/api\/workspaces\/([^/]+)\/pipelines$/);
     if (request.method === "GET" && workspacePipelinesMatch) {
       const workspaceId = decodeURIComponent(workspacePipelinesMatch[1]!);
       return jsonResponse(listPipelines(cwd, workspaceId));
+    }
+
+    if (request.method === "POST" && workspacePipelinesMatch) {
+      const workspaceId = decodeURIComponent(workspacePipelinesMatch[1]!);
+      const body = (await request.json()) as {
+        pipelineId?: string;
+        packageAlias: string;
+        platform: "android" | "iOS";
+        env: "alpha" | "production";
+        branch: string;
+      };
+      return jsonResponse(
+        await createPipelineDocument(cwd, {
+          workspaceId,
+          pipelineId: body.pipelineId,
+          packageAlias: body.packageAlias,
+          platform: body.platform,
+          env: body.env,
+          branch: body.branch,
+        }),
+        201
+      );
     }
 
     const pipelineMatch = path.match(
@@ -207,6 +231,11 @@ async function handleRequest(request: Request, cwd: string) {
       return jsonResponse(detail, detail ? 200 : 404);
     }
 
+    if (request.method === "DELETE" && pipelineMatch) {
+      const pipelineId = decodeURIComponent(pipelineMatch[2]!);
+      return jsonResponse(await deletePipelineDocument(cwd, pipelineId));
+    }
+
     const pipelineConfigMatch = path.match(
       /^\/api\/workspaces\/([^/]+)\/pipelines\/([^/]+)\/config$/
     );
@@ -216,9 +245,7 @@ async function handleRequest(request: Request, cwd: string) {
     }
 
     if (request.method === "PUT" && pipelineConfigMatch) {
-      const pipelineId = decodeURIComponent(pipelineConfigMatch[2]!);
-      const body = (await request.json()) as { content: string };
-      return jsonResponse(savePipelineConfigDocument(cwd, pipelineId, body.content));
+      return textResponse("pipeline config is read-only in phase 1", 405);
     }
 
     const buildMatch = path.match(/^\/api\/builds\/([^/]+)$/);
@@ -392,12 +419,16 @@ program
     const host = String(options.host ?? "0.0.0.0");
     const port = Number(options.port ?? 4001);
 
-    const recovered = await recoverStaleRunningRuns(cwd);
-    if (recovered.length > 0) {
+    const [recoveredRunning, recoveredQueued] = await Promise.all([
+      recoverStaleRunningRuns(cwd),
+      recoverStaleQueuedRuns(cwd),
+    ]);
+    if (recoveredRunning.length > 0 || recoveredQueued.length > 0) {
       console.log(
         JSON.stringify(
           {
-            recoveredStaleRuns: recovered,
+            recoveredStaleRuns: recoveredRunning,
+            recoveredQueuedRuns: recoveredQueued,
           },
           null,
           2

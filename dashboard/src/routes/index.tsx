@@ -100,6 +100,7 @@ function DashboardPage() {
               <Link
                 key={workspace.workspaceId}
                 to="/workspace"
+                search={{ workspaceId: workspace.workspaceId }}
                 className="block rounded-md bg-[#f4f8ff] px-4 py-4 transition hover:bg-[#eaf3ff]"
               >
                 <p className="text-sm font-semibold text-[#111827]">{workspace.name}</p>

@@ -1,22 +1,26 @@
-import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import {
   BuildProfile,
   BuildProfileSchema,
   BuildRequest,
   BuildRequestSchema,
-  ConfigTemplate,
-  ConfigTemplateSchema,
   PipelineRunContext,
   PipelineRunContextSchema,
   ProjectConfig,
   ProjectConfigSchema,
+  ProjectPipelineOptions,
   ResolvedRunConfig,
   ResolvedRunConfigSchema,
   StepState,
 } from "./types";
-
-type JsonRecord = Record<string, unknown>;
 
 function readJsonFile<T>(filePath: string, parser: { parse: (v: unknown) => T }) {
   const content = readFileSync(filePath, "utf-8");
@@ -32,33 +36,6 @@ function parseJsonContent<T>(
   parser: { parse: (v: unknown) => T }
 ) {
   return parser.parse(JSON.parse(content));
-}
-
-function mergeObjects(base: JsonRecord, next: JsonRecord): JsonRecord {
-  const result: JsonRecord = { ...base };
-  for (const [key, value] of Object.entries(next)) {
-    const current = result[key];
-    if (
-      value &&
-      typeof value === "object" &&
-      !Array.isArray(value) &&
-      current &&
-      typeof current === "object" &&
-      !Array.isArray(current)
-    ) {
-      result[key] = mergeObjects(current as JsonRecord, value as JsonRecord);
-      continue;
-    }
-    result[key] = value;
-  }
-  return result;
-}
-
-function applyTemplates(profile: BuildProfile, templates: ConfigTemplate[]) {
-  return templates.reduce<JsonRecord>(
-    (acc, template) => mergeObjects(acc, template as unknown as JsonRecord),
-    mergeObjects({}, profile as unknown as JsonRecord)
-  );
 }
 
 function configRoot(cwd: string) {
@@ -83,12 +60,72 @@ function projectFile(cwd: string, projectId: string) {
   return resolve(configRoot(cwd), "projects", `${projectId}.json`);
 }
 
-function templateFile(cwd: string, templateId: string) {
-  return resolve(configRoot(cwd), "templates", `${templateId}.json`);
-}
-
 function profileFile(cwd: string, profileId: string) {
   return resolve(configRoot(cwd), "profiles", `${profileId}.json`);
+}
+
+function profilesDir(cwd: string) {
+  return resolve(configRoot(cwd), "profiles");
+}
+
+function envRoot(cwd: string, projectId: string) {
+  return resolve(cwd, "envs", projectId);
+}
+
+function resolveProjectPipelineOptions(
+  project: ProjectConfig
+): Required<ProjectPipelineOptions> {
+  return {
+    gitUri: project.pipelineOptions.gitUri ?? project.gitUri,
+    workspaceRoot:
+      project.pipelineOptions.workspaceRoot ??
+      project.defaults.workspaceRoot ??
+      "../app-builder-cache/projects",
+    outputRoot:
+      project.pipelineOptions.outputRoot ?? project.defaults.outputRoot ?? "build",
+    runRoot: project.pipelineOptions.runRoot ?? project.defaults.runRoot ?? ".runs",
+    cleanWorkspace:
+      project.pipelineOptions.cleanWorkspace ??
+      project.defaults.cleanWorkspace ??
+      true,
+  };
+}
+
+function deriveFiles(cwd: string, profile: BuildProfile, projectId: string) {
+  const root = envRoot(cwd, projectId);
+  const envFile = resolve(root, `.env.${profile.packageAlias}.${profile.env}`);
+
+  if (profile.platform === "android") {
+    return {
+      envFile,
+      envPropertiesFile: resolve(root, `.env.${profile.packageAlias}.properties`),
+      envConfigFile: undefined,
+      exportOptionsAdHoc: undefined,
+      exportOptionsAppStore: undefined,
+      agconnectFile: resolve(root, `${profile.packageAlias}-agconnect-services.json`),
+    };
+  }
+
+  return {
+    envFile,
+    envPropertiesFile: undefined,
+    envConfigFile: resolve(root, `.env.${profile.packageAlias}.xcconfig`),
+    exportOptionsAdHoc: resolve(
+      root,
+      `${profile.packageAlias}.ExportOptions.adHoc.plist`
+    ),
+    exportOptionsAppStore:
+      profile.env === "production"
+        ? resolve(root, `${profile.packageAlias}.ExportOptions.appstore.plist`)
+        : undefined,
+    agconnectFile: undefined,
+  };
+}
+
+function assertFileExists(filePath: string, kind: string) {
+  if (!existsSync(filePath)) {
+    throw new Error(`${kind} does not exist: ${filePath}`);
+  }
 }
 
 export function loadProjectConfig(cwd: string, projectId: string): ProjectConfig {
@@ -97,10 +134,6 @@ export function loadProjectConfig(cwd: string, projectId: string): ProjectConfig
 
 export function loadBuildProfile(cwd: string, profileId: string): BuildProfile {
   return readJsonFile(profileFile(cwd, profileId), BuildProfileSchema);
-}
-
-export function loadTemplate(cwd: string, templateId: string): ConfigTemplate {
-  return readJsonFile(templateFile(cwd, templateId), ConfigTemplateSchema);
 }
 
 export function listWorkspaceConfigs(cwd: string) {
@@ -135,31 +168,67 @@ export function saveWorkspaceConfigText(
   return parsed;
 }
 
+export function createWorkspaceConfig(cwd: string, input: ProjectConfig) {
+  const parsed = ProjectConfigSchema.parse(input);
+  const filePath = projectFile(cwd, parsed.id);
+  if (existsSync(filePath)) {
+    throw new Error(`workspace already exists: ${parsed.id}`);
+  }
+  mkdirSync(dirname(filePath), { recursive: true });
+  writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf-8");
+  return parsed;
+}
+
+export function deleteWorkspaceConfig(cwd: string, workspaceId: string) {
+  const filePath = projectFile(cwd, workspaceId);
+  if (!existsSync(filePath)) {
+    throw new Error(`workspace not found: ${workspaceId}`);
+  }
+
+  const pipelineIds = readdirSync(profilesDir(cwd))
+    .filter((file) => file.endsWith(".json"))
+    .map((file) => file.replace(/\.json$/, ""))
+    .map((profileId) => loadBuildProfile(cwd, profileId))
+    .filter((profile) => profile.projectId === workspaceId)
+    .map((profile) => profile.id);
+
+  unlinkSync(filePath);
+  for (const pipelineId of pipelineIds) {
+    const pipelineFile = profileFile(cwd, pipelineId);
+    if (existsSync(pipelineFile)) {
+      unlinkSync(pipelineFile);
+    }
+  }
+
+  return { workspaceId, deletedPipelineIds: pipelineIds };
+}
+
 export function readPipelineConfigText(cwd: string, profileId: string) {
   return readJsonText(profileFile(cwd, profileId));
 }
 
-export function savePipelineConfigText(
-  cwd: string,
-  profileId: string,
-  content: string
-) {
-  const parsed = parseJsonContent(content, BuildProfileSchema);
-  if (parsed.id !== profileId) {
-    throw new Error(`pipeline id mismatch: expected ${profileId}, got ${parsed.id}`);
+export function createPipelineConfig(cwd: string, input: BuildProfile) {
+  const parsed = BuildProfileSchema.parse(input);
+  const workspaceFile = projectFile(cwd, parsed.projectId);
+  if (!existsSync(workspaceFile)) {
+    throw new Error(`workspace not found: ${parsed.projectId}`);
   }
-  writeFileSync(profileFile(cwd, profileId), `${JSON.stringify(parsed, null, 2)}\n`, "utf-8");
+  const filePath = profileFile(cwd, parsed.id);
+  if (existsSync(filePath)) {
+    throw new Error(`pipeline already exists: ${parsed.id}`);
+  }
+  mkdirSync(dirname(filePath), { recursive: true });
+  writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf-8");
   return parsed;
 }
 
-function resolveTemplates(cwd: string, profile: BuildProfile) {
-  return profile.extends.map((templateId) => loadTemplate(cwd, templateId));
-}
-
-function assertFileExists(filePath: string, kind: string) {
+export function deletePipelineConfig(cwd: string, profileId: string) {
+  const filePath = profileFile(cwd, profileId);
   if (!existsSync(filePath)) {
-    throw new Error(`${kind} does not exist: ${filePath}`);
+    throw new Error(`pipeline not found: ${profileId}`);
   }
+  unlinkSync(filePath);
+  return { pipelineId: profileId };
 }
 
 export function resolveRunConfigFromRequest(
@@ -175,38 +244,19 @@ export function resolveRunConfigFromRequest(
     );
   }
 
-  const templates = resolveTemplates(cwd, profile);
-  const merged = applyTemplates(profile, templates) as JsonRecord;
-  const runtimeConfig =
-    request.overrides.runtimeConfig &&
-    typeof request.overrides.runtimeConfig === "object" &&
-    !Array.isArray(request.overrides.runtimeConfig)
-      ? (request.overrides.runtimeConfig as JsonRecord)
-      : {};
-  const mergedWithRuntime = mergeObjects(merged, runtimeConfig);
-  const mergedPipeline = (mergedWithRuntime.pipeline ?? {}) as JsonRecord;
-  const mergedFlags = (mergedWithRuntime.flags ?? {}) as JsonRecord;
-  const mergedFeatures = (mergedWithRuntime.features ?? {}) as JsonRecord;
-  const mergedFiles = (mergedWithRuntime.files ?? {}) as JsonRecord;
-  const mergedBuild = (mergedWithRuntime.build ?? {}) as JsonRecord;
-  const mergedUploads = (mergedWithRuntime.uploads ?? {}) as JsonRecord;
-
-  const gitProjectName = basename(project.gitUri).replace(/\.git$/, "");
-  const runRoot = resolve(
-    cwd,
-    project.defaults.runRoot ?? ".runs",
-    request.runId
-  );
+  const pipelineOptions = resolveProjectPipelineOptions(project);
+  const gitProjectName = basename(pipelineOptions.gitUri).replace(/\.git$/, "");
+  const runRoot = resolve(cwd, pipelineOptions.runRoot, request.runId);
   const workspace = resolve(
     cwd,
-    project.defaults.workspaceRoot ?? "../app-builder-cache/projects",
+    pipelineOptions.workspaceRoot,
     `${gitProjectName}-${profile.id}`
   );
-  const outputDir = resolve(
-    cwd,
-    project.defaults.outputRoot ?? "build",
-    request.runId
-  );
+  const outputDir = resolve(cwd, pipelineOptions.outputRoot, request.runId);
+  const files = deriveFiles(cwd, profile, project.id);
+  const autoVersionCode =
+    profile.env === "production" || Boolean(request.args.autoVersionCode);
+  const legacyVersioning = Boolean(request.args.legacyVersioning);
 
   const resolved: ResolvedRunConfig = {
     runId: request.runId,
@@ -214,12 +264,13 @@ export function resolveRunConfigFromRequest(
     projectName: gitProjectName,
     profileId: profile.id,
     pipeline: {
-      packageAlias: String(mergedPipeline.packageAlias),
-      platform: mergedPipeline.platform as ResolvedRunConfig["pipeline"]["platform"],
-      env: mergedPipeline.env as ResolvedRunConfig["pipeline"]["env"],
-      branch: request.overrides.branch ?? String(mergedPipeline.branch),
+      packageAlias: profile.packageAlias,
+      platform: profile.platform,
+      env: profile.env,
+      branch: profile.branch,
     },
-    gitUri: project.gitUri,
+    args: request.args,
+    gitUri: pipelineOptions.gitUri,
     defaults: {
       rootCwd: cwd,
       workspace,
@@ -227,66 +278,41 @@ export function resolveRunConfigFromRequest(
       runDir: runRoot,
       logFile: resolve(runRoot, "pipeline.log"),
     },
-    files: {
-      envFile: resolve(cwd, String(mergedFiles.envFile)),
-      envPropertiesFile: mergedFiles.envPropertiesFile
-        ? resolve(cwd, String(mergedFiles.envPropertiesFile))
-        : undefined,
-      envConfigFile: mergedFiles.envConfigFile
-        ? resolve(cwd, String(mergedFiles.envConfigFile))
-        : undefined,
-      exportOptionsAdHoc: mergedFiles.exportOptionsAdHoc
-        ? resolve(cwd, String(mergedFiles.exportOptionsAdHoc))
-        : undefined,
-      exportOptionsAppStore: mergedFiles.exportOptionsAppStore
-        ? resolve(cwd, String(mergedFiles.exportOptionsAppStore))
-        : undefined,
-      agconnectFile: mergedFiles.agconnectFile
-        ? resolve(cwd, String(mergedFiles.agconnectFile))
-        : undefined,
-    },
+    files,
     flags: {
-      autoVersionCode:
-        request.overrides.autoVersionCode ?? Boolean(mergedFlags.autoVersionCode),
-      legacyVersioning:
-        request.overrides.legacyVersioning ?? Boolean(mergedFlags.legacyVersioning),
-      cleanWorkspace:
-        mergedFlags.cleanWorkspace === undefined
-          ? project.defaults.cleanWorkspace ?? true
-          : Boolean(mergedFlags.cleanWorkspace),
+      autoVersionCode,
+      legacyVersioning,
+      cleanWorkspace: pipelineOptions.cleanWorkspace,
     },
     features: {
-      codemodAndroid: Boolean(mergedFeatures.codemodAndroid),
-      copyToFileBrowser: Boolean(mergedFeatures.copyToFileBrowser),
-      syncArchive: Boolean(mergedFeatures.syncArchive),
+      codemodAndroid: profile.platform === "android",
+      copyToFileBrowser: profile.platform === "android",
+      syncArchive: profile.platform === "iOS" && profile.env === "production",
     },
     build: {
-      iosProjectName: String(mergedBuild.iosProjectName ?? "aiv"),
-      iosScheme: String(mergedBuild.iosScheme ?? "aiv"),
-      iosBuildType: String(mergedBuild.iosBuildType ?? "Release"),
-      ipaName: String(mergedBuild.ipaName ?? "aiv"),
-      distributions:
-        mergedPipeline.env === "production" ? ["adHoc", "appStore"] : ["adHoc"],
+      iosProjectName: "aiv",
+      iosScheme: "aiv",
+      iosBuildType: "Release",
+      ipaName: "aiv",
+      distributions: profile.env === "production" ? ["adHoc", "appStore"] : ["adHoc"],
     },
     uploads: {
       fir: {
-        enabled:
-          request.overrides.uploads?.fir ?? Boolean(mergedUploads.fir ?? false),
+        enabled: profile.env === "alpha" && Boolean(project.fir?.apiKey),
         apiKey: project.fir?.apiKey,
       },
       pgyer: {
-        enabled:
-          request.overrides.uploads?.pgyer ??
-          Boolean(mergedUploads.pgyer ?? false),
+        enabled: profile.env === "production" && Boolean(project.pgyer?.apiKey),
         apiKey: project.pgyer?.apiKey,
         buildType: project.pgyer?.buildType,
       },
       qiniu: {
         enabled:
-          request.overrides.uploads?.qiniu ??
-          Boolean(mergedUploads.qiniu ?? false),
+          profile.platform === "android" &&
+          profile.env === "production" &&
+          Boolean(project.uploadApi?.prod),
         url:
-          mergedPipeline.env === "alpha"
+          profile.env === "alpha"
             ? project.uploadApi?.alpha
             : project.uploadApi?.prod,
         key: project.appInfo
@@ -297,33 +323,35 @@ export function resolveRunConfigFromRequest(
     appInfo: project.appInfo,
     appStore: project.appStore,
     source: {
-      templates: profile.extends,
+      workspaceId: project.id,
+      profileId: profile.id,
     },
   };
 
   assertFileExists(resolved.files.envFile, "envFile");
   if (resolved.pipeline.platform === "android") {
     if (!resolved.files.envPropertiesFile) {
-      throw new Error("envPropertiesFile is required for android profiles");
+      throw new Error("envPropertiesFile is required for android pipelines");
+    }
+    if (!resolved.files.agconnectFile) {
+      throw new Error("agconnectFile is required for android pipelines");
     }
     assertFileExists(resolved.files.envPropertiesFile, "envPropertiesFile");
-    if (resolved.files.agconnectFile) {
-      assertFileExists(resolved.files.agconnectFile, "agconnectFile");
-    }
+    assertFileExists(resolved.files.agconnectFile, "agconnectFile");
   }
   if (resolved.pipeline.platform === "iOS") {
     if (!resolved.files.envConfigFile) {
-      throw new Error("envConfigFile is required for iOS profiles");
+      throw new Error("envConfigFile is required for iOS pipelines");
     }
     if (!resolved.files.exportOptionsAdHoc) {
-      throw new Error("exportOptionsAdHoc is required for iOS profiles");
+      throw new Error("exportOptionsAdHoc is required for iOS pipelines");
     }
     assertFileExists(resolved.files.envConfigFile, "envConfigFile");
     assertFileExists(resolved.files.exportOptionsAdHoc, "exportOptionsAdHoc");
     if (resolved.pipeline.env === "production") {
       if (!resolved.files.exportOptionsAppStore) {
         throw new Error(
-          "exportOptionsAppStore is required for iOS production profiles"
+          "exportOptionsAppStore is required for iOS production pipelines"
         );
       }
       assertFileExists(

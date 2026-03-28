@@ -6,6 +6,7 @@ import {
   getBuildRunDetail,
   inspectConfig,
   listPipelines,
+  recoverStaleQueuedRuns,
   recoverStaleRunningRuns,
   resumeBuild,
   retryBuild,
@@ -35,7 +36,6 @@ build
   .requiredOption("--project-id <projectId>")
   .requiredOption("--profile-id <profileId>")
   .option("--run-id <runId>")
-  .option("--branch <branch>")
   .option("--auto-version-code <value>")
   .option("--legacy-versioning <value>")
   .option("--trigger-source <triggerSource>")
@@ -46,8 +46,7 @@ build
       projectId: options.projectId,
       profileId: options.profileId,
       runId: options.runId,
-      overrides: {
-        branch: options.branch,
+      args: {
         autoVersionCode:
           options.autoVersionCode === undefined
             ? undefined
@@ -119,11 +118,28 @@ build
   });
 
 build
+  .command("recover-stale-queued-runs")
+  .option(
+    "--older-than-minutes <value>",
+    "Consider queued runs stale after N minutes without executor claim",
+    "30"
+  )
+  .option("--cwd <cwd>")
+  .action(async (options) => {
+    const cwd = cwdOption(options.cwd);
+    const olderThanMinutes = Number(options.olderThanMinutes ?? 30);
+    const recovered = await recoverStaleQueuedRuns(
+      cwd,
+      olderThanMinutes * 60 * 1000
+    );
+    console.log(JSON.stringify({ recovered }, null, 2));
+  });
+
+build
   .command("inspect-config")
   .requiredOption("--project-id <projectId>")
   .requiredOption("--profile-id <profileId>")
   .option("--run-id <runId>")
-  .option("--branch <branch>")
   .option("--auto-version-code <value>")
   .option("--legacy-versioning <value>")
   .option("--cwd <cwd>")
@@ -133,8 +149,7 @@ build
       projectId: options.projectId,
       profileId: options.profileId,
       runId: options.runId,
-      overrides: {
-        branch: options.branch,
+      args: {
         autoVersionCode:
           options.autoVersionCode === undefined
             ? undefined

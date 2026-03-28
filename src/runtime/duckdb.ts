@@ -8,11 +8,19 @@ type DuckConnection = {
   ) => Promise<{
     getRowObjectsJson: () => Promise<Record<string, unknown>[]>;
   }>;
+  closeSync: () => void;
+};
+
+type DuckInstance = {
+  connect: () => Promise<DuckConnection>;
+  closeSync: () => void;
 };
 
 let cachedConnection: DuckConnection | null = null;
+let cachedInstance: DuckInstance | null = null;
 let cachedPath: string | null = null;
 let cachedConnectionPromise: Promise<DuckConnection> | null = null;
+let cleanupInstalled = false;
 
 export function getDatabasePath(cwd: string) {
   return resolve(cwd, ".data", "app-builder.duckdb");
@@ -21,11 +29,48 @@ export function getDatabasePath(cwd: string) {
 async function createConnection(dbPath: string): Promise<DuckConnection> {
   const duckdb = await import("@duckdb/node-api");
   const instance = await duckdb.DuckDBInstance.create(dbPath);
-  return instance.connect() as unknown as Promise<DuckConnection>;
+  const connection = (await instance.connect()) as unknown as DuckConnection;
+  cachedInstance = instance as unknown as DuckInstance;
+  return connection;
+}
+
+function resetCachedConnection() {
+  cachedConnection = null;
+  cachedConnectionPromise = null;
+  cachedInstance = null;
+  cachedPath = null;
+}
+
+export function closeConnection() {
+  try {
+    cachedConnection?.closeSync();
+  } catch {
+    // ignore shutdown cleanup failures
+  }
+
+  try {
+    cachedInstance?.closeSync();
+  } catch {
+    // ignore shutdown cleanup failures
+  }
+
+  resetCachedConnection();
+}
+
+function installCleanupHandlers() {
+  if (cleanupInstalled) {
+    return;
+  }
+
+  cleanupInstalled = true;
+  for (const signal of ["SIGINT", "SIGTERM", "beforeExit", "exit"] as const) {
+    process.once(signal, closeConnection);
+  }
 }
 
 export async function getConnection(cwd: string) {
   const dbPath = getDatabasePath(cwd);
+  installCleanupHandlers();
   if (cachedConnection && cachedPath === dbPath) {
     return cachedConnection;
   }
@@ -47,9 +92,7 @@ export async function getConnection(cwd: string) {
     return await cachedConnectionPromise;
   } catch (error) {
     if (cachedPath === dbPath) {
-      cachedConnection = null;
-      cachedConnectionPromise = null;
-      cachedPath = null;
+      resetCachedConnection();
     }
     throw error;
   }

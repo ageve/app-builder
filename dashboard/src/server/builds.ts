@@ -29,10 +29,12 @@ async function runtimeFetch<T>(path: string, init?: RequestInit): Promise<T> {
 const startBuildInput = z.object({
   projectId: z.string(),
   profileId: z.string(),
-  branch: z.string().optional(),
-  autoVersionCode: z.boolean().optional(),
-  legacyVersioning: z.boolean().optional(),
-  runtimeConfig: z.record(z.string(), z.unknown()).optional(),
+  args: z
+    .object({
+      autoVersionCode: z.boolean().optional(),
+      legacyVersioning: z.boolean().optional(),
+    })
+    .default({}),
 })
 
 const inspectConfigInput = startBuildInput
@@ -41,19 +43,28 @@ const workspaceInput = z.object({
   workspaceId: z.string(),
 })
 
+const createWorkspaceInput = z.object({
+  workspaceId: z.string(),
+  name: z.string(),
+  gitUri: z.string(),
+})
+
 const workspacePipelineInput = z.object({
   workspaceId: z.string(),
   pipelineId: z.string(),
 })
 
-const saveConfigInput = z.object({
+const createPipelineInput = z.object({
   workspaceId: z.string(),
-  content: z.string(),
+  pipelineId: z.string().optional(),
+  packageAlias: z.string(),
+  platform: z.enum(["android", "iOS"]),
+  env: z.enum(["alpha", "production"]),
+  branch: z.string(),
 })
 
-const savePipelineConfigInput = z.object({
+const saveConfigInput = z.object({
   workspaceId: z.string(),
-  pipelineId: z.string(),
   content: z.string(),
 })
 
@@ -89,6 +100,23 @@ export const getWorkspaceServerFn = createServerFn({ method: "GET" })
     return runtimeFetch<any>(`/api/workspaces/${data.workspaceId}`)
   })
 
+export const createWorkspaceServerFn = createServerFn({ method: "POST" })
+  .inputValidator(createWorkspaceInput)
+  .handler(async ({ data }) => {
+    return runtimeFetch<any>("/api/workspaces", {
+      method: "POST",
+      body: JSON.stringify(data),
+    })
+  })
+
+export const deleteWorkspaceServerFn = createServerFn({ method: "POST" })
+  .inputValidator(workspaceInput)
+  .handler(async ({ data }) => {
+    return runtimeFetch<any>(`/api/workspaces/${data.workspaceId}`, {
+      method: "DELETE",
+    })
+  })
+
 export const getWorkspaceConfigServerFn = createServerFn({ method: "GET" })
   .inputValidator(workspaceInput)
   .handler(async ({ data }) => {
@@ -110,6 +138,32 @@ export const getWorkspacePipelinesServerFn = createServerFn({ method: "GET" })
     return runtimeFetch<any>(`/api/workspaces/${data.workspaceId}/pipelines`)
   })
 
+export const createPipelineServerFn = createServerFn({ method: "POST" })
+  .inputValidator(createPipelineInput)
+  .handler(async ({ data }) => {
+    return runtimeFetch<any>(`/api/workspaces/${data.workspaceId}/pipelines`, {
+      method: "POST",
+      body: JSON.stringify({
+        pipelineId: data.pipelineId,
+        packageAlias: data.packageAlias,
+        platform: data.platform,
+        env: data.env,
+        branch: data.branch,
+      }),
+    })
+  })
+
+export const deletePipelineServerFn = createServerFn({ method: "POST" })
+  .inputValidator(workspacePipelineInput)
+  .handler(async ({ data }) => {
+    return runtimeFetch<any>(
+      `/api/workspaces/${data.workspaceId}/pipelines/${data.pipelineId}`,
+      {
+        method: "DELETE",
+      }
+    )
+  })
+
 export const getPipelineServerFn = createServerFn({ method: "GET" })
   .inputValidator(workspacePipelineInput)
   .handler(async ({ data }) => {
@@ -123,18 +177,6 @@ export const getPipelineConfigServerFn = createServerFn({ method: "GET" })
   .handler(async ({ data }) => {
     return runtimeFetch<any>(
       `/api/workspaces/${data.workspaceId}/pipelines/${data.pipelineId}/config`
-    )
-  })
-
-export const savePipelineConfigServerFn = createServerFn({ method: "POST" })
-  .inputValidator(savePipelineConfigInput)
-  .handler(async ({ data }) => {
-    return runtimeFetch<any>(
-      `/api/workspaces/${data.workspaceId}/pipelines/${data.pipelineId}/config`,
-      {
-        method: "PUT",
-        body: JSON.stringify({ content: data.content }),
-      }
     )
   })
 

@@ -1,19 +1,8 @@
 {
   "id": "hookAi-ios-alpha",
   "projectId": "hugo-aiv-app",
-  "extends": [
-    "ios-alpha-base",
-    "hookai-brand-base"
-  ],
-  "pipeline": {
-    "packageAlias": "hookAi",
-    "platform": "iOS",
-    "env": "alpha",
-    "branch": "alpha"
-  },
-  "files": {
-    "envFile": "envs/hugo-aiv-app/.env.hookAi.alpha",
-    "envConfigFile": "envs/hugo-aiv-app/.env.hookAi.xcconfig",
-    "exportOptionsAdHoc": "envs/hugo-aiv-app/hookAi.ExportOptions.adHoc.plist"
-  }
+  "packageAlias": "hookAi",
+  "platform": "iOS",
+  "env": "alpha",
+  "branch": "alpha"
 }
