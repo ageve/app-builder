@@ -5,17 +5,22 @@
   "cSpell.words": [
     "agconnect",
     "codemod",
+    "ENVFILE",
     "gradlew",
     "orden",
     "Pgyer",
-    "Qiniu"
+    "Qiniu",
+    "xcpretty",
+    "xcworkspace"
   ],
   "files.exclude": {
     "**/.git": true,
     "**/.svn": true,
     "**/.hg": true,
     "**/.DS_Store": true,
-    "**/Thumbs.db": true
+    "**/Thumbs.db": true,
+    "**/*.blob": true,
+    "**/*.csproj": true
   },
   "hide-files.files": []
 }

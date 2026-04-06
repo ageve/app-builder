@@ -1,24 +1,31 @@
 import { exec } from "child_process";
 import { FetchTokenParams, FirTokenResult, UploadFirParams } from "../types";
 // import FormData from "form-data";
+import { log } from "@clack/prompts";
 import fetch, { FormData, fileFromSync } from "node-fetch";
 // import { version } from "os";
 // import { resolve } from "path";
-import { $ } from "zx/core";
 
 export async function getToken(
   params: FetchTokenParams
 ): Promise<FirTokenResult> {
   const { apiToken, platform, packageName } = params;
-  const result = await fetch("http://api.bq04.com/apps", {
+  const body = JSON.stringify({
+    type: platform.toLowerCase().trim(),
+    bundle_id: packageName,
+    api_token: apiToken,
+  });
+  log.info(body);
+  log.info(JSON.stringify(body));
+  const result = await fetch("http://api.appmeta.cn/apps", {
     method: "POST",
-    body: JSON.stringify({
-      type: platform,
-      bundle_id: packageName,
-      api_token: apiToken,
-    }),
+    body,
     headers: { "Content-Type": "application/json" },
-  }).then((resp) => resp.json());
+  })
+    .then((resp) => resp.json())
+    .catch((error) => {
+      log.error(error);
+    });
   const binary = (
     result as {
       cert: { binary: { upload_url: string; key: string; token: string } };
@@ -84,10 +91,11 @@ export async function uploadByCurl(params: UploadFirParams) {
        -F "x:name=${appName}"             \
        -F "x:version=${versionName}"         \
        -F "x:build=${versionCode}"               \
+       -F "x:release_type=Adhoc"         \
        ${url}
-    `
+    `;
     console.log(command);
-    exec(command)
+    exec(command);
 
     return true;
   } catch (error) {

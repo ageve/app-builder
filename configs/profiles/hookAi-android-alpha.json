@@ -1,0 +1,8 @@
+{
+  "id": "hookAi-android-alpha",
+  "projectId": "hugo-aiv-app",
+  "packageAlias": "hookAi",
+  "platform": "android",
+  "env": "alpha",
+  "branch": "alpha"
+}

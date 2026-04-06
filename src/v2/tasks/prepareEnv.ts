@@ -1,5 +1,4 @@
 import { log } from "@clack/prompts";
-import dayjs from "dayjs";
 import { readFileSync, writeFileSync } from "fs-extra";
 import { resolve } from "path";
 import {
@@ -11,34 +10,79 @@ import {
 async function prepareEnv(
   context: any,
   envFile: string,
-  incrementVersionCode?: boolean
+  autoVersionCode?: boolean,
+  legacyVersioning?: boolean,
+  platform?: string
 ) {
   try {
     log.info(context.workspace);
-    const { workspace, logger } = context;
+    const { workspace, logger, variables, env } = context;
 
-    const packageJSON = JSON.parse(
-      readFileSync(resolve(workspace, "./package.json"), "utf-8")
-    );
     // 读取预设 envFile 内容
     const envContent = dotEnvToJson(readFileSync(envFile, "utf-8"));
 
-    const versionName = envContent["EXPO_PUBLIC_VERSION_NAME"];
-    const versionCode = envContent["EXPO_PUBLIC_VERSION_CODE"];
+    let versionCode = envContent["EXPO_PUBLIC_VERSION_CODE"];
+    let legacyVersionName = envContent["EXPO_PUBLIC_VERSION_NAME"];
+    if (platform === "iOS") {
+      versionCode = envContent["EXPO_PUBLIC_BUNDLE_VERSION"];
+      legacyVersionName = envContent["EXPO_PUBLIC_BUNDLE_VERSION_STRING"];
+    }
 
-    const newVersionName = `${packageJSON.version}.${dayjs().format(
-      "YYMMDDHHmm"
-    )}`;
+    // Use commit hash as build number from variables
+    const newBuildNumber = variables?.commitCount;
 
-    const newVersionCode = incrementVersionCode
-      ? String(Number(envContent["EXPO_PUBLIC_VERSION_CODE"]) + 1)
-      : envContent["EXPO_PUBLIC_VERSION_CODE"];
+    // Only increment version code for production environment by default
+    const shouldIncrementVersionCode =
+      autoVersionCode !== undefined ? autoVersionCode : env === "production";
 
-    envContent["EXPO_PUBLIC_VERSION_NAME"] = newVersionName;
-    envContent["EXPO_PUBLIC_VERSION_CODE"] = newVersionCode;
+    const newVersionCode = shouldIncrementVersionCode
+      ? String(Number(versionCode) + 1)
+      : versionCode;
 
-    log.info(`versionName: ${versionName} -> ${newVersionName}`);
-    log.info(`versionCode: ${versionCode} -> ${newVersionCode}`);
+    let newVersionName;
+
+    // Backward compatibility: use legacy version name if provided
+    if (legacyVersioning) {
+      log.info(
+        `In legacy versioning mode, using version name from env: ${legacyVersionName}`
+      );
+      newVersionName = legacyVersionName;
+    } else {
+      // Convert newVersionCode to semantic version
+      const currentVersionCode = Number(newVersionCode);
+      log.info(`Parsing version code: ${currentVersionCode}`);
+
+      let major, minor, patch;
+      // format: 101002 -> 1.1.2
+      major = Math.floor(currentVersionCode / 100000);
+      minor = Math.floor((currentVersionCode % 100000) / 1000);
+      patch = currentVersionCode % 1000;
+
+      const semanticVersion = `${major}.${minor}.${patch}`;
+
+      newVersionName = `${semanticVersion}.${newBuildNumber}`;
+      log.info(`Generated version name: ${newVersionName}`);
+    }
+
+    if (platform === "android") {
+      envContent["EXPO_PUBLIC_VERSION_CODE"] = newVersionCode;
+      envContent["EXPO_PUBLIC_VERSION_NAME"] = newVersionName;
+    }
+    if (platform === "iOS") {
+      envContent["EXPO_PUBLIC_BUNDLE_VERSION"] = newVersionCode;
+      envContent["EXPO_PUBLIC_BUNDLE_VERSION_STRING"] = newVersionName;
+    }
+
+    log.info(
+      `environment: ${env} (version code increment: ${shouldIncrementVersionCode})`
+    );
+    log.info(
+      `versionCode: ${versionCode} -> ${newVersionCode}${
+        shouldIncrementVersionCode ? " (incremented)" : " (unchanged)"
+      }`
+    );
+    log.info(`buildNumber: ${newBuildNumber}`);
+    log.info(`versionName: ${newVersionName}`);
 
     log.info(`env ${JSON.stringify(envContent, null, 2)}`);
 
@@ -59,6 +103,8 @@ async function prepareEnv(
       envContent,
       envFileCache,
       ...normalizeEnvVariables,
+      versionName: newVersionName,
+      versionCode: newVersionCode,
     };
     logger.info(result);
     return result;
@@ -72,10 +118,12 @@ async function prepareEnv(
 
 export default function createPrepareEnv(
   envFile: string,
-  incrementVersionCode = false
+  autoVersionCode = false,
+  legacyVersioning = false,
+  platform = "android"
 ) {
   const task = (context: any) =>
-    prepareEnv(context, envFile, incrementVersionCode);
+    prepareEnv(context, envFile, autoVersionCode, legacyVersioning, platform);
   setTaskName("prepareEnv", task);
   return task;
 }

@@ -2,6 +2,10 @@
   "scripts": {
     "build": "tsc"
   },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx"
+  ],
   "compilerOptions": {
     "module": "commonjs",
     "allowSyntheticDefaultImports": true,
@@ -13,13 +17,20 @@
     "strict": true,
     "sourceMap": false,
     "skipLibCheck": true,
-    "outDir": "./dist"
-    //    "baseUrl": "./",
-    //    "paths": {
-    //      "@/*": ["./src/*"]
-    //    }
+    "outDir": "./dist",
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ]
+    }
   },
-  "exclude": ["node_modules", "projects"],
+  "exclude": [
+    "node_modules",
+    "projects",
+    "apps",
+    "dist",
+    "**/*.test.ts"
+  ],
   "ts-node": {
     "files": true
   }

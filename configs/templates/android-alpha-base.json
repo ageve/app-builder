@@ -1,0 +1,23 @@
+{
+  "id": "android-alpha-base",
+  "kind": "pipeline-template",
+  "pipeline": {
+    "platform": "android",
+    "env": "alpha",
+    "branch": "alpha"
+  },
+  "flags": {
+    "autoVersionCode": false,
+    "legacyVersioning": false,
+    "cleanWorkspace": true
+  },
+  "features": {
+    "codemodAndroid": true,
+    "copyToFileBrowser": false
+  },
+  "uploads": {
+    "fir": true,
+    "pgyer": false,
+    "qiniu": false
+  }
+}

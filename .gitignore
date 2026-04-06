@@ -1,4 +1,3 @@
-envs
 projects
 builds
 build
@@ -11,3 +10,15 @@ dist
 log
 
 config.ts
+.DS_Store
+
+logs
+.runs
+.data
+apps/web/.output
+apps/web/.vinxi
+
+.docker
+*.apk
+*.ipa
+configs

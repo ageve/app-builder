@@ -23,7 +23,15 @@ export const createLogger = ({
   clean && rimrafSync(filename);
   return winston.createLogger({
     level: "info",
-    format: winston.format.json(),
+    format: winston.format.combine(
+      winston.format.timestamp({
+        format: "YYYY-MM-DD HH:mm:ss.SSS", // ✅ 自定义时间格式
+      }),
+      winston.format((info) => {
+        info[Symbol.for("message")] = JSON.stringify(info, null, 2);
+        return info;
+      })()
+    ),
     transports: [
       new winston.transports.File({
         filename,

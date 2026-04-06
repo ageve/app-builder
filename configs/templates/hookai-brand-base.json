@@ -1,0 +1,7 @@
+{
+  "id": "hookai-brand-base",
+  "kind": "pipeline-template",
+  "pipeline": {
+    "packageAlias": "hookAi"
+  }
+}

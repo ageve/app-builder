@@ -1,0 +1,40 @@
+{
+  "id": "hugo-aiv-app",
+  "name": "Hugo AIV App",
+  "gitUri": "git@codeup.aliyun.com:6221b87488a0328818f13a3c/hugo/hugo-aiv-app.git",
+  "pipelineOptions": {
+    "gitUri": "git@codeup.aliyun.com:6221b87488a0328818f13a3c/hugo/hugo-aiv-app.git",
+    "workspaceRoot": "../app-builder-cache/projects",
+    "outputRoot": "build",
+    "runRoot": ".runs",
+    "cleanWorkspace": true
+  },
+  "defaults": {
+    "workspaceRoot": "../app-builder-cache/projects",
+    "outputRoot": "build",
+    "runRoot": ".runs",
+    "cleanWorkspace": true
+  },
+  "appInfo": {
+    "name": "钩子AI",
+    "slogan": "10秒做引流视频"
+  },
+  "fir": {
+    "apiKey": "c1fac02cef8a0e1db76349d81860cdd3"
+  },
+  "pgyer": {
+    "apiKey": "58d6056c6533a8459dfb775b4b8018a5",
+    "buildType": "apk"
+  },
+  "uploadApi": {
+    "alpha": "https://hugoapia.yocdev.com/storage/upload",
+    "prod": "https://hugoapi.ctssvc.com/storage/upload"
+  },
+  "updateUrl": {
+    "alpha": "",
+    "prod": ""
+  },
+  "appStore": {
+    "keychain": "ACTIFLOWTACAECH_PROFILE"
+  }
+}

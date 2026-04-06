@@ -1,15 +1,31 @@
+import { log } from "@clack/prompts";
 import { Platform } from "../types";
 import { setTaskName } from "../utils/common";
 import { getToken, uploadByCurl } from "../utils/fir";
-async function uploadFir(context: any, apiToken: string, platform: Platform) {
+async function uploadFir(
+  context: any,
+  options: { apiToken: string; platform: Platform; customAppName?: string }
+) {
   try {
-    const { buildAndroid, prepareEnv } = context;
-    const { productFiles } = buildAndroid;
+    const { prepareEnv } = context;
     const { applicationId, appName, versionCode, versionName } = prepareEnv;
-    const target = (productFiles as string[]).find((it) =>
-      it.includes("universal")
+    const { platform, apiToken, customAppName } = options;
+    let file: string | undefined = "";
+    log.info(
+      `upload Fir.im,${platform} App. ${JSON.stringify(context.buildIOS)}`
     );
-    if (!target) return false;
+    if (platform === "android") {
+      const { productFiles } = context.buildAndroid;
+      file = (productFiles as string[]).find((it) => it.includes("universal"));
+    }
+    if (platform === "iOS") {
+      const { ipaFiles } = context.buildIOS;
+      file = ipaFiles.adHoc;
+    }
+    if (!Boolean(file)) {
+      log.error(`miss output file`);
+      return false;
+    }
     const uploadWithToken = await getToken({
       apiToken,
       platform,
@@ -18,10 +34,10 @@ async function uploadFir(context: any, apiToken: string, platform: Platform) {
     await uploadByCurl({
       ...uploadWithToken,
       platform,
-      appName: appName,
+      appName: customAppName || appName,
       versionCode: versionCode,
       versionName: versionName,
-      filepath: target,
+      filepath: file as string,
     });
     return true;
   } catch (error) {
@@ -30,8 +46,13 @@ async function uploadFir(context: any, apiToken: string, platform: Platform) {
   return false;
 }
 
-export default function createUploadFir(apiToken: string, platform: Platform) {
-  const task = (context: any) => uploadFir(context, apiToken, platform);
+export default function createUploadFir(
+  apiToken: string,
+  platform: Platform,
+  customAppName?: string
+) {
+  const task = (context: any) =>
+    uploadFir(context, { apiToken, platform, customAppName });
   setTaskName("uploadFir", task);
   return task;
 }

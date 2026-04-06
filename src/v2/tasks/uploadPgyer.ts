@@ -1,19 +1,32 @@
-import { GetCorsTokenParams } from "../types";
+import { log } from "@clack/prompts";
+import { GetCorsTokenParams, Platform } from "../types";
 import { setTaskName } from "../utils/common";
 import { uploadPgyer } from "../utils/pgyer";
 
-export async function uploadPgyerTask(context: any, data: GetCorsTokenParams) {
+export async function uploadPgyerTask(
+  context: any,
+  data: GetCorsTokenParams,
+  platform: Platform
+) {
   try {
-    const { buildAndroid } = context;
-    const { productFiles } = buildAndroid;
-    const target = (productFiles as string[]).find((it) =>
-      it.includes("universal")
-    );
-    if (!target) return false;
+    let file: string | undefined = "";
+
+    if (platform === "android") {
+      const { productFiles } = context.buildAndroid;
+      file = (productFiles as string[]).find((it) => it.includes("universal"));
+    }
+    if (platform === "iOS") {
+      const { ipaFiles } = context.buildIOS;
+      file = ipaFiles.adHoc;
+    }
+    if (!file) {
+      log.error(`miss output file`);
+      return false;
+    }
     await uploadPgyer({
       getCorsTokenData: data,
       uploadData: {
-        productFile: target,
+        productFile: file,
       },
     });
     return true;
@@ -23,8 +36,11 @@ export async function uploadPgyerTask(context: any, data: GetCorsTokenParams) {
   return false;
 }
 
-export default function createUploadPgyer(data: GetCorsTokenParams) {
-  const task = (context: any) => uploadPgyerTask(context, data);
+export default function createUploadPgyer(
+  data: GetCorsTokenParams,
+  platform: Platform
+) {
+  const task = (context: any) => uploadPgyerTask(context, data, platform);
   setTaskName("uploadPgyer", task);
   return task;
 }

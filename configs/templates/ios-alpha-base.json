@@ -1,0 +1,28 @@
+{
+  "id": "ios-alpha-base",
+  "kind": "pipeline-template",
+  "pipeline": {
+    "platform": "iOS",
+    "env": "alpha",
+    "branch": "alpha"
+  },
+  "flags": {
+    "autoVersionCode": false,
+    "legacyVersioning": false,
+    "cleanWorkspace": true
+  },
+  "features": {
+    "syncArchive": false
+  },
+  "build": {
+    "iosProjectName": "aiv",
+    "iosScheme": "aiv",
+    "iosBuildType": "Release",
+    "ipaName": "aiv"
+  },
+  "uploads": {
+    "fir": true,
+    "pgyer": false,
+    "qiniu": false
+  }
+}

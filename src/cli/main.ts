@@ -2,7 +2,7 @@
 import { cancel, intro, isCancel, outro, select } from "@clack/prompts";
 import color from "picocolors";
 import { buildHugoAivApp } from "./hugo-aiv/buildHugoAivApp";
-import { buildHugoGameApp } from "./hugo-game/buildHugoGameApp";
+import { buildHugoAivAppUpgrade } from "./hugo-aiv/buildUpgrade";
 
 async function main() {
   intro(color.inverse(" App Builder "));
@@ -11,7 +11,7 @@ async function main() {
     message: "Select the project to be build.",
     options: [
       { value: "hugoAiv", label: "hugo-aiv-app" },
-      // { value: "hugoGame", label: "hugo-game-app" },
+      // { value: "hugoAivUpgrade", label: "hugo-aiv-app-upgrade" },
     ],
   });
 
@@ -22,8 +22,8 @@ async function main() {
 
   if (projectName === "hugoAiv") {
     await buildHugoAivApp();
-  } else {
-    await buildHugoGameApp();
+  } else if (projectName === "hugoAivUpgrade") {
+    await buildHugoAivAppUpgrade();
   }
 
   outro("Finish!");
