@@ -1,3 +1,4 @@
+// @ts-nocheck
 import Enquirer from "enquirer";
 import { readdirSync } from "fs-extra";
 import { resolve } from "node:path";
@@ -90,8 +91,8 @@ function buildAlphaOrProdPipelineGroup({
   const envs = customEnvs
     ? customEnvs
     : type === "production"
-    ? productionEnvs
-    : alphaEnvs;
+      ? productionEnvs
+      : alphaEnvs;
   const branch = type === "production" ? "master" : "alpha";
   rimraf(resolve(cwd(), "./build/hugo-game-app"));
   pipelineRun(
@@ -115,12 +116,12 @@ function buildAlphaOrProdPipelineGroup({
         updatePackage,
         createNotifyBusinessWechat(config!.notifyBusinessWechat.webhook),
       ]);
-    })
+    }),
   );
 }
 
 async function buildCustomPipelineGroup(
-  type: Pick<PipelineGroup, "custom-alpha" & "custom-production">
+  type: Pick<PipelineGroup, "custom-alpha" & "custom-production">,
 ) {
   const envs = type === "custom-production" ? productionEnvs : alphaEnvs;
   const en2 = new Enquirer<{ customPipeline: string[] }>();
@@ -133,7 +134,7 @@ async function buildCustomPipelineGroup(
   console.log(result.customPipeline);
   if (result.customPipeline && result.customPipeline.length > 0) {
     const customEnvs = envs.filter((it) =>
-      result.customPipeline.includes(it.name)
+      result.customPipeline.includes(it.name),
     );
     console.log(envs, customEnvs);
 

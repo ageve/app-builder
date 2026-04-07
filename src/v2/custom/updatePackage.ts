@@ -17,8 +17,8 @@ export default async function updatePackage(context: any) {
 
     const href =
       ENV_TYPE === "alpha"
-        ? builderConfig.updateUrl.alpha
-        : builderConfig.updateUrl.prod;
+        ? builderConfig.updateUrl?.alpha
+        : builderConfig.updateUrl?.prod;
     const common = {
       commitId: `${commitId};${versionName}`,
       packageName: APPLICATION_ID,
@@ -40,7 +40,7 @@ export default async function updatePackage(context: any) {
       JSON.stringify({
         type: "update",
         params: data,
-      })
+      }),
     )}`;
     logger.info(href);
     logger.info(searchParams);
