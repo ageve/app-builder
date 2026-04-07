@@ -1,6 +1,8 @@
 import { log } from "@clack/prompts";
+import dayjs from "dayjs";
 import { resolve } from "node:path";
 import { cwd } from "node:process";
+import picocolors from "picocolors";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 import {
@@ -10,6 +12,7 @@ import {
 import {
   configSchema,
   createConnect,
+  findBuildSummariesByBuildIdPrefix,
   getBuildHistoryByBuildId,
   getBuildSummaryByBuildId,
   initBuildHistoryDb,
@@ -55,14 +58,38 @@ async function listTodayBuilds() {
 
     renderTable({
       columns: [
-        { key: "buildId", title: "BuildId", maxWidth: 24 },
-        { key: "status", title: "Status", maxWidth: 10 },
-        { key: "pipeId", title: "PipeId", maxWidth: 34 },
-        { key: "env", title: "Env", maxWidth: 12 },
-        { key: "branch", title: "Branch", maxWidth: 12 },
-        { key: "platform", title: "Platform", maxWidth: 10 },
-        { key: "startedAt", title: "StartedAt", maxWidth: 24 },
-        { key: "failedTaskName", title: "FailedTask", maxWidth: 18 },
+        {
+          key: "buildId",
+          title: "BuildId",
+          maxWidth: 12,
+          minWidth: 10,
+          hardMinWidth: 10,
+          render: (row, width) => formatCell(toResumeId(row.buildId), width),
+        },
+        { key: "status", title: "Status", maxWidth: 11, minWidth: 11, hardMinWidth: 11 },
+        { key: "pipeId", title: "PipeId", maxWidth: 34, minWidth: 12, hardMinWidth: 10 },
+        { key: "env", title: "Env", maxWidth: 12, minWidth: 7 },
+        { key: "branch", title: "Branch", maxWidth: 12, minWidth: 8 },
+        { key: "platform", title: "Platform", maxWidth: 10, minWidth: 8 },
+        {
+          key: "startedAt",
+          title: "StartedAt",
+          maxWidth: 14,
+          minWidth: 11,
+          hardMinWidth: 11,
+          render: (row, width) =>
+            formatCell(formatStartedAt(row.startedAt), width),
+        },
+        {
+          key: "failedTaskName",
+          title: "FailedTask",
+          maxWidth: 18,
+          minWidth: 10,
+          render: (row, width) => {
+            const text = formatCell(row.failedTaskName, width);
+            return text === "-" ? text : picocolors.red(text);
+          },
+        },
       ],
       rows: builds,
     });
@@ -82,12 +109,12 @@ async function listAllPipelines() {
 
     renderTable({
       columns: [
-        { key: "pipe_id", title: "PipeId", maxWidth: 34 },
-        { key: "project_name", title: "Project", maxWidth: 14 },
-        { key: "env", title: "Env", maxWidth: 12 },
-        { key: "branch", title: "Branch", maxWidth: 12 },
-        { key: "platform", title: "Platform", maxWidth: 10 },
-        { key: "workspace", title: "Workspace", maxWidth: 28 },
+        { key: "pipe_id", title: "PipeId", maxWidth: 34, minWidth: 16 },
+        { key: "project_name", title: "Project", maxWidth: 14, minWidth: 10 },
+        { key: "env", title: "Env", maxWidth: 12, minWidth: 7 },
+        { key: "branch", title: "Branch", maxWidth: 12, minWidth: 8 },
+        { key: "platform", title: "Platform", maxWidth: 10, minWidth: 8 },
+        { key: "workspace", title: "Workspace", maxWidth: 28, minWidth: 12 },
       ],
       rows: pipelines,
     });
@@ -124,7 +151,7 @@ async function initHugoAivPipelines() {
 async function resumeBuild(buildId: string) {
   const db = await createConnect();
   try {
-    const summary = await getBuildSummaryByBuildId(db, buildId);
+    const summary = await resolveBuildSummary(db, buildId);
 
     if (!summary) {
       renderKeyValueCard("Resume", [
@@ -135,7 +162,7 @@ async function resumeBuild(buildId: string) {
     }
 
     renderKeyValueCard("Resume", [
-      ["BuildId", summary.buildId],
+      ["BuildId", toResumeId(summary.buildId)],
       ["Status", summary.status],
       ["PipeId", summary.pipeId],
       ["Project", summary.projectName],
@@ -197,11 +224,11 @@ async function resumeBuild(buildId: string) {
     });
 
     log.info(
-      `resume buildId=${buildId}, from taskIndex=${summary.failedTaskIndex}, taskName=${summary.failedTaskName}`,
+      `resume buildId=${summary.buildId}, from taskIndex=${summary.failedTaskIndex}, taskName=${summary.failedTaskName}`,
     );
     const success = await pipeline.run();
     renderKeyValueCard("Resume Result", [
-      ["BuildId", buildId],
+      ["BuildId", toResumeId(summary.buildId)],
       ["Result", success ? "恢复执行完成" : "恢复执行失败"],
       ["FromTask", summary.failedTaskName ?? "-"],
     ]);
@@ -290,19 +317,34 @@ function renderTable({
   columns,
   rows,
 }: {
-  columns: Array<{ key: string; title: string; maxWidth?: number }>;
+  columns: Array<{
+    key: string;
+    title: string;
+    maxWidth?: number;
+    minWidth?: number;
+    hardMinWidth?: number;
+    render?: (row: Record<string, unknown>, width: number) => string;
+  }>;
   rows: Array<Record<string, unknown>>;
 }) {
-  const normalizedRows = rows.map((row) =>
-    columns.map((column) => formatCell(row[column.key], column.maxWidth)),
-  );
-  const widths = columns.map((column, index) => {
+  const measuredWidths = columns.map((column, index) => {
+    const formattedValues = rows.map((row) =>
+      stripAnsi(column.render ? column.render(row, column.maxWidth ?? 1000) : formatCell(row[column.key])),
+    );
     const contentWidth = Math.max(
       stringWidth(column.title),
-      ...normalizedRows.map((row) => stringWidth(row[index])),
+      ...formattedValues.map((value) => stringWidth(value)),
     );
     return column.maxWidth ? Math.min(contentWidth, column.maxWidth) : contentWidth;
   });
+  const widths = fitTableWidths(columns, measuredWidths);
+  const normalizedRows = rows.map((row) =>
+    columns.map((column, index) =>
+      column.render
+        ? column.render(row, widths[index])
+        : formatCell(row[column.key], widths[index]),
+    ),
+  );
 
   const border = `┌${widths.map((width) => "─".repeat(width + 2)).join("┬")}┐`;
   const divider = `├${widths.map((width) => "─".repeat(width + 2)).join("┼")}┤`;
@@ -351,6 +393,56 @@ function formatCell(value: unknown, maxWidth?: number) {
   return `${truncated}…`;
 }
 
+function fitTableWidths(
+  columns: Array<{ title: string; minWidth?: number; hardMinWidth?: number }>,
+  widths: number[],
+) {
+  const nextWidths = [...widths];
+  const terminalWidth = Math.max(80, process.stdout.columns || 120);
+  const preferredMinWidths = columns.map((column) =>
+    Math.max(column.minWidth ?? 6, Math.min(stringWidth(column.title), 12)),
+  );
+  const hardMinWidths = columns.map((column) =>
+    Math.max(
+      column.hardMinWidth ?? 0,
+      Math.max(Math.min(stringWidth(column.title), 8), 4),
+    ),
+  );
+
+  shrinkWidths(nextWidths, preferredMinWidths, terminalWidth);
+  shrinkWidths(nextWidths, hardMinWidths, terminalWidth);
+
+  return nextWidths;
+}
+
+function shrinkWidths(
+  widths: number[],
+  minWidths: number[],
+  terminalWidth: number,
+) {
+  while (getTableWidth(widths) > terminalWidth) {
+    let targetIndex = -1;
+    let largestWidth = -1;
+
+    widths.forEach((width, index) => {
+      if (width > minWidths[index] && width > largestWidth) {
+        largestWidth = width;
+        targetIndex = index;
+      }
+    });
+
+    if (targetIndex === -1) {
+      break;
+    }
+
+    widths[targetIndex] -= 1;
+  }
+}
+
+function getTableWidth(widths: number[]) {
+  return widths.reduce((total, width) => total + width, 0) + widths.length * 3 + 1;
+}
+
 function truncateText(text: string, maxWidth: number) {
   let current = "";
   for (const char of text) {
@@ -363,7 +455,73 @@ function truncateText(text: string, maxWidth: number) {
 }
 
 function stringWidth(text: string) {
-  return [...text].reduce((total, char) => total + (char.charCodeAt(0) > 255 ? 2 : 1), 0);
+  return [...stripAnsi(text)].reduce(
+    (total, char) => total + (char.charCodeAt(0) > 255 ? 2 : 1),
+    0,
+  );
+}
+
+function stripAnsi(text: string) {
+  return text.replace(/\u001B\[[0-9;]*m/g, "");
+}
+
+function formatStartedAt(value: unknown) {
+  if (!value || typeof value !== "string") {
+    return "-";
+  }
+  const parsed = dayjs(value);
+  if (!parsed.isValid()) {
+    return value;
+  }
+  return parsed.format("MM-DD HH:mm:ss");
+}
+
+async function resolveBuildSummary(
+  db: Awaited<ReturnType<typeof createConnect>>,
+  buildIdOrPrefix: string,
+) {
+  const exact = await getBuildSummaryByBuildId(db, buildIdOrPrefix);
+  if (exact) {
+    return exact;
+  }
+
+  const matched = await findBuildSummariesByBuildIdPrefix(db, buildIdOrPrefix);
+  if (matched.length === 1) {
+    return matched[0];
+  }
+
+  if (matched.length > 1) {
+    renderTable({
+      columns: [
+        {
+          key: "buildId",
+          title: "BuildId",
+          maxWidth: 12,
+          minWidth: 10,
+          render: (row, width) => formatCell(toResumeId(row.buildId), width),
+        },
+        { key: "status", title: "Status", maxWidth: 10, minWidth: 7 },
+        { key: "pipeId", title: "PipeId", maxWidth: 30, minWidth: 16 },
+        {
+          key: "startedAt",
+          title: "StartedAt",
+          maxWidth: 14,
+          minWidth: 11,
+          render: (row, width) =>
+            formatCell(formatStartedAt(row.startedAt), width),
+        },
+      ],
+      rows: matched,
+    });
+    console.log("匹配到多条构建记录，请多输几位 BuildId。");
+  }
+
+  return null;
+}
+
+function toResumeId(value: unknown) {
+  const text = typeof value === "string" ? value : "";
+  return text.slice(0, 10) || "-";
 }
 
 main().catch((error) => {

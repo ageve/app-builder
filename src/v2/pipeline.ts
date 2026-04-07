@@ -1,5 +1,6 @@
 import { log } from "@clack/prompts";
 import chalk from "chalk";
+import onDeath from "death";
 import { ensureDirSync } from "fs-extra";
 import { nanoid } from "nanoid";
 import { basename, resolve } from "node:path";
@@ -88,9 +89,17 @@ export default class Pipeline {
       ...(this.resumeState?.context ?? {}),
     };
     let dbInfo: Awaited<ReturnType<typeof initBuildHistoryDb>> | undefined;
+    let currentTask:
+      | {
+          name: string;
+          index: number;
+          startedAt: string;
+        }
+      | undefined;
+    let removeSignalHandlers: (() => void) | undefined;
 
     try {
-      const buildId = this.resumeState?.buildId ?? nanoid();
+      const buildId = this.resumeState?.buildId ?? nanoid(12);
       context.buildId = buildId;
       this.context.buildId = buildId;
 
@@ -109,6 +118,38 @@ export default class Pipeline {
       });
       context.pipelineId = dbInfo.pipelineId;
       this.context.pipelineId = dbInfo.pipelineId;
+      removeSignalHandlers = onDeath({
+        uncaughtException: false,
+      })(async (signal) => {
+          if (!dbInfo || !currentTask) {
+            process.exit(1);
+            return;
+          }
+
+          const interruptedAt = new Date().toISOString();
+          await upsertBuildHistory(dbInfo.db, {
+            pipelineId: dbInfo.pipelineId,
+            buildId,
+            taskName: currentTask.name,
+            taskIndex: currentTask.index,
+            status: "interrupted",
+            output:
+              typeof context.output === "string" ? context.output : undefined,
+            logFile:
+              typeof context.logFile === "string" ? context.logFile : undefined,
+            cwd: typeof context.cwd === "string" ? context.cwd : undefined,
+            taskInput: stringifyDbValue(removeLogger(context)) ?? undefined,
+            errorMessage: signal ? `Interrupted by ${signal}` : "Interrupted",
+            startedAt: currentTask.startedAt,
+            finishedAt: interruptedAt,
+            durationMs:
+              new Date(interruptedAt).getTime() -
+              new Date(currentTask.startedAt).getTime(),
+          });
+          await dbInfo.db.close();
+          console.log(chalk.yellow("\n构建已中断，状态已记录到历史。"));
+          process.exit(signal === "SIGINT" ? 130 : 143);
+        });
 
       const beforeRunContext = { ...context };
       delete beforeRunContext.logger;
@@ -120,6 +161,11 @@ export default class Pipeline {
         try {
           const task = this.tasks[index];
           const taskName = task.name || `task_${index}`;
+          currentTask = {
+            name: taskName,
+            index,
+            startedAt: new Date(taskStartTime).toISOString(),
+          };
           console.log(chalk.cyan(`[${task.name}]`));
           await upsertBuildHistory(dbInfo.db, {
             pipelineId: dbInfo.pipelineId,
@@ -133,7 +179,7 @@ export default class Pipeline {
               typeof context.logFile === "string" ? context.logFile : undefined,
             cwd: typeof context.cwd === "string" ? context.cwd : undefined,
             taskInput: stringifyDbValue(removeLogger(context)) ?? undefined,
-            startedAt: new Date(taskStartTime).toISOString(),
+            startedAt: currentTask.startedAt,
           });
 
           await this.beforeTask?.(context);
@@ -165,10 +211,11 @@ export default class Pipeline {
             taskInput: stringifyDbValue(removeLogger(context)) ?? undefined,
             taskOutput: taskOutput ?? undefined,
             contextOutputKey,
-            startedAt: new Date(taskStartTime).toISOString(),
+            startedAt: currentTask.startedAt,
             finishedAt: new Date(taskEndTime).toISOString(),
             durationMs: taskEndTime - taskStartTime,
           });
+          currentTask = undefined;
           await this.afterTask?.(context);
         } catch (error) {
           const taskEndTime = Date.now();
@@ -192,10 +239,12 @@ export default class Pipeline {
             taskInput: stringifyDbValue(removeLogger(context)) ?? undefined,
             errorMessage: errorMessage ?? undefined,
             errorStack: errorStack ?? undefined,
-            startedAt: new Date(taskStartTime).toISOString(),
+            startedAt:
+              currentTask?.startedAt ?? new Date(taskStartTime).toISOString(),
             finishedAt: new Date(taskEndTime).toISOString(),
             durationMs: taskEndTime - taskStartTime,
           });
+          currentTask = undefined;
 
           const endTime = taskEndTime;
           log.info(
@@ -220,6 +269,7 @@ export default class Pipeline {
     } catch (error) {
       return false;
     } finally {
+      removeSignalHandlers?.();
       await dbInfo?.db.close();
     }
   }

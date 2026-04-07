@@ -19,6 +19,9 @@ export async function importIfExistsAndValidate<T>(
     if (error instanceof ZodError) {
       return err(`Config read failed, ${error.message}`);
     }
-    return err("Config file does not exit");
+    if (error instanceof Error) {
+      return err(`Config read failed, ${error.message}`);
+    }
+    return err("Config read failed");
   }
 }

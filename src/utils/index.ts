@@ -5,6 +5,7 @@ export {
   createBuildHistoryTable,
   createConnect,
   ensurePipeline,
+  findBuildSummariesByBuildIdPrefix,
   getBuildHistoryByBuildId,
   getBuildSummaryByBuildId,
   getPipelineKey,

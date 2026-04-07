@@ -50,7 +50,7 @@ export type BuildSummary = {
   buildOptions: Record<string, unknown> | null;
   startedAt: string;
   finishedAt?: string | null;
-  status: "failed" | "success" | "running";
+  status: "failed" | "success" | "running" | "interrupted";
   failedTaskName?: string | null;
   failedTaskIndex?: number | null;
   taskCount: number;
@@ -406,6 +406,7 @@ export async function getBuildSummaryByBuildId(
 
   const first = history[0];
   const failedTask = history.find((item) => item.status === "failed");
+  const interruptedTask = history.find((item) => item.status === "interrupted");
   const last = history[history.length - 1];
 
   return {
@@ -420,11 +421,41 @@ export async function getBuildSummaryByBuildId(
     buildOptions: first.build_options ? JSON.parse(first.build_options) : null,
     startedAt: first.started_at,
     finishedAt: last.finished_at ?? null,
-    status: failedTask ? "failed" : history.every((item) => item.status === "success") ? "success" : "running",
-    failedTaskName: failedTask?.task_name ?? null,
-    failedTaskIndex: typeof failedTask?.task_index === "number" ? failedTask.task_index : null,
+    status: failedTask
+      ? "failed"
+      : interruptedTask
+        ? "interrupted"
+        : history.every((item) => item.status === "success")
+          ? "success"
+          : "running",
+    failedTaskName: failedTask?.task_name ?? interruptedTask?.task_name ?? null,
+    failedTaskIndex:
+      typeof failedTask?.task_index === "number"
+        ? failedTask.task_index
+        : typeof interruptedTask?.task_index === "number"
+          ? interruptedTask.task_index
+          : null,
     taskCount: history.length,
   };
+}
+
+export async function findBuildSummariesByBuildIdPrefix(
+  db: Database,
+  buildIdPrefix: string,
+): Promise<BuildSummary[]> {
+  const statement = db.prepare(`
+    SELECT DISTINCT build_id
+    FROM "${BUILD_HISTORY_TABLE_NAME}"
+    WHERE build_id LIKE ?
+    ORDER BY started_at DESC
+  `);
+  const buildIds = (await statement.all(`${buildIdPrefix}%`)) as Array<{
+    build_id: string;
+  }>;
+  const summaries = await Promise.all(
+    buildIds.map((item) => getBuildSummaryByBuildId(db, item.build_id)),
+  );
+  return summaries.filter((item): item is BuildSummary => item !== null);
 }
 
 export async function listBuildSummariesByDate(
@@ -432,10 +463,13 @@ export async function listBuildSummariesByDate(
   date = dayjs().format("YYYY-MM-DD"),
 ): Promise<BuildSummary[]> {
   const statement = db.prepare(`
-    SELECT DISTINCT build_id
+    SELECT
+      build_id,
+      MAX(started_at) AS latest_started_at
     FROM "${BUILD_HISTORY_TABLE_NAME}"
     WHERE substr(started_at, 1, 10) = ?
-    ORDER BY build_id DESC
+    GROUP BY build_id
+    ORDER BY latest_started_at DESC, build_id DESC
   `);
   const buildIds = (await statement.all(date)) as Array<{ build_id: string }>;
   const summaries = await Promise.all(
