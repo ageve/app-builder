@@ -12,6 +12,9 @@ export type Options = {
   workspace?: string;
   clean?: boolean;
   env?: string;
+  platform?: string;
+  pipeId?: string;
+  buildOptions?: Record<string, unknown>;
 };
 export type Context = Options & Record<string, unknown>;
 
