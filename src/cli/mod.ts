@@ -12,9 +12,11 @@ import {
   createHugoAivPipelines,
   getHugoAivPipelineOptions,
 } from "./hugo-aiv/buildHugoAivApp";
+import { BuildAlreadyRunningError } from "../v2/pipeline";
 import {
   configSchema,
   createConnect,
+  createReadonlyConnect,
   findBuildSummariesByBuildIdPrefix,
   getBuildHistoryByBuildId,
   getBuildSummaryByBuildId,
@@ -61,7 +63,7 @@ async function main() {
 }
 
 async function listTodayBuilds() {
-  const db = await createConnect();
+  const db = await createReadonlyConnect();
   try {
     const builds = hideSupersededBuilds(await listBuildSummariesByDate(db));
 
@@ -82,6 +84,8 @@ async function listTodayBuilds() {
         },
         { key: "status", title: "Status", maxWidth: 11, minWidth: 11, hardMinWidth: 11 },
         { key: "pipeId", title: "PipeId", maxWidth: 34, minWidth: 12, hardMinWidth: 10 },
+        { key: "versionCode", title: "VersionCode", maxWidth: 12, minWidth: 10 },
+        { key: "versionName", title: "VersionName", maxWidth: 18, minWidth: 12 },
         { key: "startTaskName", title: "StartTask", maxWidth: 16, minWidth: 10 },
         { key: "env", title: "Env", maxWidth: 12, minWidth: 7 },
         { key: "branch", title: "Branch", maxWidth: 12, minWidth: 8 },
@@ -143,7 +147,7 @@ function hideSupersededBuilds(builds: BuildSummary[]) {
 }
 
 async function listAllPipelines() {
-  const db = await createConnect();
+  const db = await createReadonlyConnect();
   try {
     const pipelines = await listPipelines(db);
     if (pipelines.length === 0) {
@@ -193,7 +197,7 @@ async function initHugoAivPipelines() {
 }
 
 async function resumeBuild(buildId: string) {
-  const db = await createConnect();
+  const db = await createReadonlyConnect();
   try {
     const summary = await resolveBuildSummary(db, buildId);
 
@@ -270,12 +274,24 @@ async function resumeBuild(buildId: string) {
     log.info(
       `resume buildId=${summary.buildId}, from taskIndex=${summary.failedTaskIndex}, taskName=${summary.failedTaskName}`,
     );
-    const success = await pipeline.run();
-    renderKeyValueCard("Resume Result", [
-      ["BuildId", toResumeId(summary.buildId)],
-      ["Result", success ? "恢复执行完成" : "恢复执行失败"],
-      ["FromTask", summary.failedTaskName ?? "-"],
-    ]);
+    try {
+      const success = await pipeline.run();
+      renderKeyValueCard("Resume Result", [
+        ["BuildId", toResumeId(summary.buildId)],
+        ["Result", success ? "恢复执行完成" : "恢复执行失败"],
+        ["FromTask", summary.failedTaskName ?? "-"],
+      ]);
+    } catch (error) {
+      if (error instanceof BuildAlreadyRunningError) {
+        renderKeyValueCard("Resume Result", [
+          ["BuildId", toResumeId(summary.buildId)],
+          ["Result", "这条构建当前正在执行，请稍后再试"],
+          ["FromTask", summary.failedTaskName ?? "-"],
+        ]);
+        return;
+      }
+      throw error;
+    }
   } finally {
     await db.close();
   }
@@ -287,7 +303,7 @@ async function showBuildTaskInfo(buildId: string, taskName?: string) {
     return;
   }
 
-  const db = await createConnect();
+  const db = await createReadonlyConnect();
   try {
     const summary = await resolveBuildSummary(db, buildId);
     if (!summary) {
@@ -347,7 +363,7 @@ async function retryBuildFromTask(buildId: string, taskName?: string) {
     return;
   }
 
-  const db = await createConnect();
+  const db = await createReadonlyConnect();
   try {
     const summary = await resolveBuildSummary(db, buildId);
     if (!summary) {
@@ -436,23 +452,35 @@ async function retryBuildFromTask(buildId: string, taskName?: string) {
       `retry sourceBuildId=${summary.buildId}, from taskIndex=${taskRow.task_index}, taskName=${taskName}`,
     );
 
-    const success = await runPipelineFromTask(
-      pipeline,
-      taskRow.task_index,
-      retryContext,
-    );
-    renderKeyValueCard("Retry Result", [
-      ["SourceBuildId", toResumeId(summary.buildId)],
-      ["FromTask", taskName],
-      ["Result", success ? "重试执行完成" : "重试执行失败"],
-    ]);
+    try {
+      const success = await runPipelineFromTask(
+        pipeline,
+        taskRow.task_index,
+        retryContext,
+      );
+      renderKeyValueCard("Retry Result", [
+        ["SourceBuildId", toResumeId(summary.buildId)],
+        ["FromTask", taskName],
+        ["Result", success ? "重试执行完成" : "重试执行失败"],
+      ]);
+    } catch (error) {
+      if (error instanceof BuildAlreadyRunningError) {
+        renderKeyValueCard("Retry Result", [
+          ["SourceBuildId", toResumeId(summary.buildId)],
+          ["FromTask", taskName],
+          ["Result", "这条构建当前正在执行，请稍后再试"],
+        ]);
+        return;
+      }
+      throw error;
+    }
   } finally {
     await db.close();
   }
 }
 
 async function uploadBuildToAppStore(buildId: string) {
-  const db = await createConnect();
+  const db = await createReadonlyConnect();
   try {
     const summary = await resolveBuildSummary(db, buildId);
     if (!summary) {

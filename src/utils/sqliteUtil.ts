@@ -1,12 +1,15 @@
 import { connect, Database } from "@tursodatabase/database";
 import dayjs from "dayjs";
 import { ensureDirSync } from "fs-extra";
+import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { cwd } from "node:process";
 
 const DEFAULT_DB_PATH = resolve(cwd(), "data/build_sqlite.db");
 const PIPELINE_TABLE_NAME = "pipeline";
 const BUILD_HISTORY_TABLE_NAME = "build_history";
+const BUILD_LOCK_TABLE_NAME = "build_run_lock";
+const DEFAULT_DB_TIMEOUT = 5000;
 
 type PipelineRecordInput = {
   pipeId: string;
@@ -51,11 +54,18 @@ export type BuildSummary = {
   startedAt: string;
   finishedAt?: string | null;
   status: "failed" | "success" | "running" | "interrupted";
+  versionCode?: string | null;
+  versionName?: string | null;
   startTaskName?: string | null;
   startTaskIndex?: number | null;
   failedTaskName?: string | null;
   failedTaskIndex?: number | null;
   taskCount: number;
+};
+
+type BuildRunLockInput = {
+  buildId: string;
+  pipeId: string;
 };
 
 function normalizePipeId(pipeId: string) {
@@ -90,12 +100,42 @@ export function stringifyDbValue(value: unknown) {
   }
 }
 
+async function configureDb(
+  db: Database,
+  options?: { readonly?: boolean; ensureSchema?: boolean },
+) {
+  if (!options?.readonly) {
+    await db.exec(`PRAGMA busy_timeout = ${DEFAULT_DB_TIMEOUT}`);
+    await db.exec("PRAGMA journal_mode = WAL");
+    await db.exec("PRAGMA synchronous = NORMAL");
+    if (options?.ensureSchema !== false) {
+      await ensureTables(db);
+    }
+  }
+}
+
 // 初始化链接
-export async function createConnect(dbPath = DEFAULT_DB_PATH) {
+export async function createConnect(
+  dbPath = DEFAULT_DB_PATH,
+  options?: { readonly?: boolean; ensureSchema?: boolean },
+) {
   ensureDirSync(dirname(dbPath));
-  const db = await connect(dbPath);
-  await ensureTables(db);
+  const db = await connect(dbPath, {
+    readonly: options?.readonly,
+    timeout: DEFAULT_DB_TIMEOUT,
+  });
+  await configureDb(db, options);
   return db;
+}
+
+export async function createReadonlyConnect(dbPath = DEFAULT_DB_PATH) {
+  if (!existsSync(dbPath)) {
+    throw new Error(`Database file does not exist: ${dbPath}`);
+  }
+  return createConnect(dbPath, {
+    readonly: true,
+    ensureSchema: false,
+  });
 }
 
 async function getTableColumns(db: Database, tableName: string) {
@@ -233,9 +273,30 @@ export async function createBuildHistoryTable(db: Database) {
   return BUILD_HISTORY_TABLE_NAME;
 }
 
+async function createBuildRunLockTable(db: Database) {
+  const existed = await checkTableExists(db, BUILD_LOCK_TABLE_NAME);
+  if (!existed) {
+    await db.exec(`
+      CREATE TABLE "${BUILD_LOCK_TABLE_NAME}" (
+        build_id TEXT PRIMARY KEY,
+        pipe_id TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  }
+
+  await ensureColumns(db, BUILD_LOCK_TABLE_NAME, [
+    { name: "pipe_id", definition: "pipe_id TEXT" },
+    { name: "created_at", definition: "created_at TEXT" },
+  ]);
+
+  return BUILD_LOCK_TABLE_NAME;
+}
+
 async function ensureTables(db: Database) {
   await createPipelineTable(db);
   await createBuildHistoryTable(db);
+  await createBuildRunLockTable(db);
 }
 
 async function findPipeline(db: Database, pipeId: string) {
@@ -383,6 +444,39 @@ export async function initBuildHistoryDb(
   };
 }
 
+export async function acquireBuildRunLock(
+  db: Database,
+  input: BuildRunLockInput,
+) {
+  const statement = db.prepare(`
+    INSERT INTO "${BUILD_LOCK_TABLE_NAME}" (build_id, pipe_id)
+    VALUES (?, ?)
+  `);
+
+  try {
+    await statement.run(input.buildId, input.pipeId);
+    return true;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (
+      message.includes("UNIQUE constraint failed") ||
+      message.includes("duplicate key") ||
+      message.includes("PRIMARY KEY")
+    ) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+export async function releaseBuildRunLock(db: Database, buildId: string) {
+  const statement = db.prepare(`
+    DELETE FROM "${BUILD_LOCK_TABLE_NAME}"
+    WHERE build_id = ?
+  `);
+  await statement.run(buildId);
+}
+
 export async function getBuildHistoryByBuildId(
   db: Database,
   buildId: string,
@@ -407,9 +501,13 @@ export async function getBuildSummaryByBuildId(
   }
 
   const first = history[0];
+  const prepareEnvTask = history.find((item) => item.task_name === "prepareEnv");
   const failedTask = history.find((item) => item.status === "failed");
   const interruptedTask = history.find((item) => item.status === "interrupted");
   const last = history[history.length - 1];
+  const prepareEnvOutput = parseDbJson(
+    prepareEnvTask?.task_output,
+  ) as Record<string, unknown> | null;
 
   return {
     buildId,
@@ -430,6 +528,14 @@ export async function getBuildSummaryByBuildId(
         : history.every((item) => item.status === "success")
           ? "success"
           : "running",
+    versionCode:
+      typeof prepareEnvOutput?.versionCode === "string"
+        ? prepareEnvOutput.versionCode
+        : null,
+    versionName:
+      typeof prepareEnvOutput?.versionName === "string"
+        ? prepareEnvOutput.versionName
+        : null,
     startTaskName: first.task_name ?? null,
     startTaskIndex:
       typeof first.task_index === "number" ? first.task_index : null,
@@ -508,4 +614,16 @@ export async function listPipelines(db: Database) {
     ORDER BY pipe_id ASC
   `);
   return (await statement.all()) as Array<Record<string, any>>;
+}
+
+function parseDbJson(value: unknown) {
+  if (typeof value !== "string" || value === "") {
+    return null;
+  }
+
+  try {
+    return JSON.parse(value) as unknown;
+  } catch (_error) {
+    return null;
+  }
 }

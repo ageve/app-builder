@@ -7,7 +7,9 @@ import { basename, resolve } from "node:path";
 import { cwd } from "node:process";
 import { rimraf } from "rimraf";
 import {
+  acquireBuildRunLock,
   initBuildHistoryDb,
+  releaseBuildRunLock,
   stringifyDbValue,
   upsertBuildHistory,
 } from "../utils/sqliteUtil";
@@ -20,6 +22,16 @@ type ResumeState = {
   startTaskIndex: number;
   context: Record<string, unknown>;
 };
+
+export class BuildAlreadyRunningError extends Error {
+  buildId: string;
+
+  constructor(buildId: string) {
+    super(`buildId=${buildId} 已经有别的进程在运行。`);
+    this.name = "BuildAlreadyRunningError";
+    this.buildId = buildId;
+  }
+}
 
 export default class Pipeline {
   context: Context;
@@ -89,6 +101,8 @@ export default class Pipeline {
       ...(this.resumeState?.context ?? {}),
     };
     let dbInfo: Awaited<ReturnType<typeof initBuildHistoryDb>> | undefined;
+    let buildId = "";
+    let buildRunLockAcquired = false;
     let currentTask:
       | {
           name: string;
@@ -99,7 +113,7 @@ export default class Pipeline {
     let removeSignalHandlers: (() => void) | undefined;
 
     try {
-      const buildId = this.resumeState?.buildId ?? nanoid(12);
+      buildId = this.resumeState?.buildId ?? nanoid(12);
       context.buildId = buildId;
       this.context.buildId = buildId;
 
@@ -118,6 +132,13 @@ export default class Pipeline {
       });
       context.pipelineId = dbInfo.pipelineId;
       this.context.pipelineId = dbInfo.pipelineId;
+      buildRunLockAcquired = await acquireBuildRunLock(dbInfo.db, {
+        buildId,
+        pipeId: String(context.pipeId),
+      });
+      if (!buildRunLockAcquired) {
+        throw new BuildAlreadyRunningError(buildId);
+      }
       removeSignalHandlers = onDeath({
         uncaughtException: false,
       })(async (signal) => {
@@ -146,6 +167,7 @@ export default class Pipeline {
               new Date(interruptedAt).getTime() -
               new Date(currentTask.startedAt).getTime(),
           });
+          await releaseBuildRunLock(dbInfo.db, buildId);
           await dbInfo.db.close();
           console.log(chalk.yellow("\n构建已中断，状态已记录到历史。"));
           process.exit(signal === "SIGINT" ? 130 : 143);
@@ -267,9 +289,15 @@ export default class Pipeline {
       await this.afterRun?.(context);
       return true;
     } catch (error) {
+      if (error instanceof BuildAlreadyRunningError) {
+        throw error;
+      }
       return false;
     } finally {
       removeSignalHandlers?.();
+      if (dbInfo && buildRunLockAcquired && buildId) {
+        await releaseBuildRunLock(dbInfo.db, buildId);
+      }
       await dbInfo?.db.close();
     }
   }
