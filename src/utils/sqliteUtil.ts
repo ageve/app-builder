@@ -462,16 +462,22 @@ export async function listBuildSummariesByDate(
   db: Database,
   date = dayjs().format("YYYY-MM-DD"),
 ): Promise<BuildSummary[]> {
+  const dayStart = dayjs(date).startOf("day");
+  const nextDayStart = dayStart.add(1, "day");
   const statement = db.prepare(`
     SELECT
       build_id,
       MAX(started_at) AS latest_started_at
     FROM "${BUILD_HISTORY_TABLE_NAME}"
-    WHERE substr(started_at, 1, 10) = ?
+    WHERE started_at >= ?
+      AND started_at < ?
     GROUP BY build_id
     ORDER BY latest_started_at DESC, build_id DESC
   `);
-  const buildIds = (await statement.all(date)) as Array<{ build_id: string }>;
+  const buildIds = (await statement.all(
+    dayStart.toISOString(),
+    nextDayStart.toISOString(),
+  )) as Array<{ build_id: string }>;
   const summaries = await Promise.all(
     buildIds.map((item) => getBuildSummaryByBuildId(db, item.build_id)),
   );

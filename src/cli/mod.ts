@@ -22,6 +22,7 @@ import {
   listPipelines,
   type Config,
 } from "../utils";
+import type { BuildSummary } from "../utils/sqliteUtil";
 
 type CliArgs = {
   pipeline?: boolean;
@@ -54,7 +55,7 @@ async function main() {
 async function listTodayBuilds() {
   const db = await createConnect();
   try {
-    const builds = await listBuildSummariesByDate(db);
+    const builds = hideSupersededBuilds(await listBuildSummariesByDate(db));
 
     if (builds.length === 0) {
       console.log("今天还没有构建记录。");
@@ -66,9 +67,9 @@ async function listTodayBuilds() {
         {
           key: "buildId",
           title: "BuildId",
-          maxWidth: 12,
-          minWidth: 10,
-          hardMinWidth: 10,
+          maxWidth: 16,
+          minWidth: 12,
+          hardMinWidth: 12,
           render: (row, width) => formatCell(toResumeId(row.buildId), width),
         },
         { key: "status", title: "Status", maxWidth: 11, minWidth: 11, hardMinWidth: 11 },
@@ -101,6 +102,35 @@ async function listTodayBuilds() {
   } finally {
     await db.close();
   }
+}
+
+function hideSupersededBuilds(builds: BuildSummary[]) {
+  const succeededKeys = new Set<string>();
+
+  return builds.filter((build) => {
+    const key = [
+      build.projectName,
+      build.pipeId,
+      build.env ?? "",
+      build.branch ?? "",
+      build.platform ?? "",
+      build.workspace ?? "",
+    ].join("|");
+
+    if (build.status === "success") {
+      succeededKeys.add(key);
+      return true;
+    }
+
+    if (
+      succeededKeys.has(key) &&
+      (build.status === "failed" || build.status === "interrupted")
+    ) {
+      return false;
+    }
+
+    return true;
+  });
 }
 
 async function listAllPipelines() {
@@ -706,8 +736,8 @@ async function resolveBuildSummary(
         {
           key: "buildId",
           title: "BuildId",
-          maxWidth: 12,
-          minWidth: 10,
+          maxWidth: 16,
+          minWidth: 12,
           render: (row, width) => formatCell(toResumeId(row.buildId), width),
         },
         { key: "status", title: "Status", maxWidth: 10, minWidth: 7 },
@@ -731,7 +761,7 @@ async function resolveBuildSummary(
 
 function toResumeId(value: unknown) {
   const text = typeof value === "string" ? value : "";
-  return text.slice(0, 10) || "-";
+  return text || "-";
 }
 
 main().catch((error) => {
