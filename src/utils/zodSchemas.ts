@@ -35,7 +35,13 @@ export const configSchema = z.object({
     })
     .optional(),
   appInfo: z.object({ name: z.string(), slogan: z.string() }).optional(),
-  appStore: z.object({ keychain: z.string() }).optional(),
+  appStore: z
+    .object({
+      keychain: z.string().optional(),
+      appId: z.string().optional(),
+      profile: z.string().optional(),
+    })
+    .optional(),
 });
 
 export type Config = z.infer<typeof configSchema>;

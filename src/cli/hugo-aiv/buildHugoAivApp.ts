@@ -168,8 +168,8 @@ export function createHugoAivPipelines({
           ]
         : [
             createBuildIOS({
-              projectName: "kuaivideo",
-              schema: "kuaivideo",
+              projectName: "aiv",
+              schema: "aiv",
               buildType: "Release",
               exportOptionsPath: {
                 adHoc: resolve(
@@ -214,7 +214,7 @@ export function createHugoAivPipelines({
       tasks.push(createUploadPgyer(config!.pgyer, platform as Platform));
     }
     if (env === "production" && platform === "iOS") {
-      tasks.push(createSyncArchive({ schema: "kuaivideo" }));
+      tasks.push(createSyncArchive({ schema: "aiv" }));
       if (!config.appStore) {
         log.error("[buildPipeline] miss upload appStore config");
       }
@@ -234,7 +234,9 @@ export function createHugoAivPipelines({
 
     tasks.push(renameLog({ external: platform.toLowerCase().trim() }));
 
-    log.info("[buildPipeline]tasks " + tasks.map((task) => task.name).join(" "));
+    log.info(
+      "[buildPipeline]tasks " + tasks.map((task) => task.name).join(" "),
+    );
 
     const pipeline = new Pipeline(
       {

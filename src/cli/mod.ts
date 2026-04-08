@@ -1,11 +1,13 @@
 import { log } from "@clack/prompts";
 import dayjs from "dayjs";
+import { existsSync } from "node:fs";
 import { colorize } from "json-colorizer";
 import { resolve } from "node:path";
 import { cwd } from "node:process";
 import picocolors from "picocolors";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
+import { $ } from "zx";
 import {
   createHugoAivPipelines,
   getHugoAivPipelineOptions,
@@ -31,6 +33,7 @@ type CliArgs = {
   resume?: string;
   info?: string;
   task?: string;
+  upload?: string;
 };
 
 async function main() {
@@ -43,6 +46,8 @@ async function main() {
     await listAllPipelines();
   } else if (argv.info) {
     await showBuildTaskInfo(argv.info, argv.task);
+  } else if (argv.upload) {
+    await uploadBuildToAppStore(argv.upload);
   } else if (argv.init) {
     await initHugoAivPipelines();
   } else if (argv.resume) {
@@ -332,6 +337,107 @@ async function showBuildTaskInfo(buildId: string, taskName?: string) {
   }
 }
 
+async function uploadBuildToAppStore(buildId: string) {
+  const db = await createConnect();
+  try {
+    const summary = await resolveBuildSummary(db, buildId);
+    if (!summary) {
+      renderKeyValueCard("上传到 App Store Connect", [
+        ["BuildId", buildId],
+        ["Result", "未找到这条构建记录"],
+      ]);
+      return;
+    }
+
+    if (summary.platform !== "iOS") {
+      renderKeyValueCard("上传到 App Store Connect", [
+        ["BuildId", toResumeId(summary.buildId)],
+        ["Platform", summary.platform ?? "-"],
+        ["Result", "只支持 iOS 构建记录"],
+      ]);
+      return;
+    }
+
+    const history = await getBuildHistoryByBuildId(db, summary.buildId);
+    const buildIosTask = history.find((item) => item.task_name === "buildIOS");
+    const buildIosOutput = parseJsonValue(buildIosTask?.task_output);
+    const ipaPath =
+      buildIosOutput &&
+      typeof buildIosOutput === "object" &&
+      "ipaFiles" in buildIosOutput &&
+      buildIosOutput.ipaFiles &&
+      typeof buildIosOutput.ipaFiles === "object" &&
+      "appStore" in buildIosOutput.ipaFiles
+        ? String(buildIosOutput.ipaFiles.appStore || "")
+        : "";
+
+    if (!buildIosTask || !ipaPath) {
+      renderKeyValueCard("上传到 App Store Connect", [
+        ["BuildId", toResumeId(summary.buildId)],
+        ["Task", "buildIOS"],
+        ["Result", "这次构建没有可上传的 App Store IPA"],
+      ]);
+      return;
+    }
+
+    if (!existsSync(ipaPath)) {
+      renderKeyValueCard("上传到 App Store Connect", [
+        ["BuildId", toResumeId(summary.buildId)],
+        ["IPA", ipaPath],
+        ["Result", "找到了构建记录，但本机上没有这个 IPA 文件"],
+      ]);
+      return;
+    }
+
+    const config = await loadHugoAivConfig();
+    const appId =
+      config.appStore?.appId ??
+      process.env.APP_STORE_CONNECT_APP_ID ??
+      process.env.ASC_APP_ID;
+    const profile =
+      config.appStore?.profile ??
+      process.env.APP_STORE_CONNECT_PROFILE ??
+      process.env.ASC_PROFILE;
+
+    if (!appId) {
+      renderKeyValueCard("上传到 App Store Connect", [
+        ["BuildId", toResumeId(summary.buildId)],
+        ["IPA", ipaPath],
+        ["Result", "缺少 appId，请在 config.appStore.appId 或环境变量里提供"],
+      ]);
+      return;
+    }
+
+    renderKeyValueCard("上传到 App Store Connect", [
+      ["BuildId", toResumeId(summary.buildId)],
+      ["PipeId", summary.pipeId],
+      ["Platform", summary.platform ?? "-"],
+      ["IPA", ipaPath],
+      ["AppId", appId],
+      ["Profile", profile ?? "default"],
+    ]);
+
+    try {
+      const profileArgs = profile ? ["--profile", profile] : [];
+      await $`asc ${profileArgs} builds upload --app ${appId} --ipa ${ipaPath}`;
+      renderKeyValueCard("上传结果", [
+        ["BuildId", toResumeId(summary.buildId)],
+        ["Result", "已提交到 App Store Connect"],
+      ]);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : String(error ?? "上传失败");
+      renderKeyValueCard("上传结果", [
+        ["BuildId", toResumeId(summary.buildId)],
+        ["Result", "上传失败"],
+        ["Reason", message],
+      ]);
+    }
+  } finally {
+    await db.close();
+  }
+}
+
 async function loadHugoAivConfig() {
   const configPath = resolve(cwd(), "./src/cli/hugo-aiv/config.ts");
   const result = await importIfExistsAndValidate(configPath, configSchema);
@@ -384,7 +490,7 @@ function normalizeCliArgs(args: string[]) {
 function createCli() {
   return yargs(normalizeCliArgs(hideBin(process.argv)))
     .scriptName("bun run src/cli/mod.ts")
-    .usage("用法:\n  $0 -l\n  $0 -p\n  $0 -i <buildId> --task <taskName>\n  $0 -init\n  $0 --resume <buildId>")
+    .usage("用法:\n  $0 -l\n  $0 -p\n  $0 -i <buildId> --task <taskName>\n  $0 --upload <buildId>\n  $0 -init\n  $0 --resume <buildId>")
     .updateStrings({
       "Options:": "选项:",
       "Show version number": "显示版本号",
@@ -409,6 +515,10 @@ function createCli() {
     .option("task", {
       type: "string",
       description: "配合 --info 使用，指定任务名",
+    })
+    .option("upload", {
+      type: "string",
+      description: "将某次 iOS 构建产出的 IPA 上传到 App Store Connect",
     })
     .option("init", {
       type: "boolean",
@@ -687,6 +797,18 @@ function formatTaskDetails(sections: Array<[string, string]>) {
     .filter(([, value]) => value !== "-")
     .map(([label, value]) => `${label}:\n${value}`)
     .join("\n\n");
+}
+
+function parseJsonValue(value: unknown) {
+  if (typeof value !== "string" || value === "") {
+    return null;
+  }
+
+  try {
+    return JSON.parse(value) as Record<string, unknown>;
+  } catch (_error) {
+    return null;
+  }
 }
 
 function splitTextByWidth(text: string, maxWidth: number): [string, string] {
