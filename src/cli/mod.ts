@@ -371,6 +371,18 @@ async function showBuildTaskInfo(buildId: string, taskName?: string) {
           ),
         ],
       ]);
+
+      renderTextCard(
+        taskName
+          ? `任务上下文 · ${taskRow?.task_name ?? taskName}`
+          : "Build Context",
+        formatTaskDetails([
+          ["task", formatPlainBlock(taskRow?.task_name)],
+          ["taskInput", formatJsonBlock(taskRow?.task_input)],
+          ["logFile", formatPlainBlock(taskRow?.log_file)],
+          ["errorStack", formatPlainBlock(taskRow?.error_stack)],
+        ]),
+      );
       return;
     }
 

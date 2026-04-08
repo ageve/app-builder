@@ -6,6 +6,22 @@ import builderConfig from "../config.global";
 import { setTaskName } from "../utils/common";
 const config = new qiniu.conf.Config();
 
+function summarizeUploadApiResponse(data: unknown) {
+  if (!data || typeof data !== "object") {
+    return String(data);
+  }
+
+  const record = data as Record<string, unknown>;
+  return JSON.stringify({
+    code: record.code,
+    message: record.message,
+    msg: record.msg,
+    key: record.key,
+    token: typeof record.token === "string" ? "[present]" : record.token,
+    url: record.url,
+  });
+}
+
 export default async function uploadQiniu(
   context: any,
   options?: { key: string }
@@ -41,13 +57,32 @@ export default async function uploadQiniu(
       }),
     });
     const data = (await response.json()) as any;
+    if (!response.ok) {
+      throw new Error(
+        `uploadApi 请求失败: status=${response.status} body=${summarizeUploadApiResponse(
+          data,
+        )}`,
+      );
+    }
 
     const formUploader = new qiniu.form_up.FormUploader(config);
     const putExtra = new qiniu.form_up.PutExtra();
     const key = options?.key
       ? options.key.replace("{versionName}", versionName)
       : data.key;
-    let uploadToken = data.token;
+    const uploadToken = data.token;
+
+    if (!uploadToken) {
+      throw new Error(
+        `uploadApi 返回缺少 token: ${summarizeUploadApiResponse(data)}`,
+      );
+    }
+
+    if (!key) {
+      throw new Error(
+        `uploadApi 返回缺少 key: ${summarizeUploadApiResponse(data)}`,
+      );
+    }
 
     const uploadRes = await new Promise((resolve, reject) => {
       formUploader.putFile(
@@ -78,7 +113,7 @@ export default async function uploadQiniu(
       return { downloadUrl: data.url };
     }
   } catch (error) {
-    console.log(error);
+    throw error instanceof Error ? error : new Error(String(error));
   }
   return false;
 }
