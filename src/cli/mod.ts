@@ -1,5 +1,6 @@
 import { log } from "@clack/prompts";
 import dayjs from "dayjs";
+import { colorize } from "json-colorizer";
 import { resolve } from "node:path";
 import { cwd } from "node:process";
 import picocolors from "picocolors";
@@ -27,6 +28,8 @@ type CliArgs = {
   init?: boolean;
   history?: boolean;
   resume?: string;
+  info?: string;
+  task?: string;
 };
 
 async function main() {
@@ -37,6 +40,8 @@ async function main() {
     await listTodayBuilds();
   } else if (argv.pipeline) {
     await listAllPipelines();
+  } else if (argv.info) {
+    await showBuildTaskInfo(argv.info, argv.task);
   } else if (argv.init) {
     await initHugoAivPipelines();
   } else if (argv.resume) {
@@ -237,6 +242,66 @@ async function resumeBuild(buildId: string) {
   }
 }
 
+async function showBuildTaskInfo(buildId: string, taskName?: string) {
+  if (!taskName) {
+    console.log("请同时传入 --task <taskName>。");
+    return;
+  }
+
+  const db = await createConnect();
+  try {
+    const summary = await resolveBuildSummary(db, buildId);
+    if (!summary) {
+      renderKeyValueCard("构建详情", [
+        ["BuildId", buildId],
+        ["Result", "未找到这条构建记录"],
+      ]);
+      return;
+    }
+
+    const history = await getBuildHistoryByBuildId(db, summary.buildId);
+    const taskRow = history.find((item) => item.task_name === taskName);
+
+    if (!taskRow) {
+      renderKeyValueCard("构建详情", [
+        ["BuildId", toResumeId(summary.buildId)],
+        ["Task", taskName],
+        ["Result", "这次构建里没有这个任务"],
+      ]);
+      return;
+    }
+
+    renderKeyValueCard("构建详情", [
+      ["BuildId", toResumeId(summary.buildId)],
+      ["Task", taskRow.task_name ?? taskName],
+      ["Status", taskRow.status ?? "-"],
+      ["PipeId", taskRow.pipe_id ?? summary.pipeId],
+      ["StartedAt", formatStartedAt(taskRow.started_at)],
+      ["FinishedAt", formatStartedAt(taskRow.finished_at)],
+    ]);
+
+    renderSplitCard({
+      title: "任务详情",
+      leftTitle: "输入上下文",
+      rightTitle: "输出结果",
+      left: formatTaskDetails([
+        ["taskInput", formatJsonBlock(taskRow.task_input)],
+        ["cwd", formatPlainBlock(taskRow.cwd)],
+        ["logFile", formatPlainBlock(taskRow.log_file)],
+        ["buildOptions", formatJsonBlock(taskRow.build_options)],
+      ]),
+      right: formatTaskDetails([
+        ["taskOutput", formatJsonBlock(taskRow.task_output)],
+        ["contextKey", formatPlainBlock(taskRow.context_output_key)],
+        ["errorMessage", formatPlainBlock(taskRow.error_message)],
+        ["errorStack", formatPlainBlock(taskRow.error_stack)],
+      ]),
+    });
+  } finally {
+    await db.close();
+  }
+}
+
 async function loadHugoAivConfig() {
   const configPath = resolve(cwd(), "./src/cli/hugo-aiv/config.ts");
   const result = await importIfExistsAndValidate(configPath, configSchema);
@@ -289,7 +354,13 @@ function normalizeCliArgs(args: string[]) {
 function createCli() {
   return yargs(normalizeCliArgs(hideBin(process.argv)))
     .scriptName("bun run src/cli/mod.ts")
-    .usage("用法:\n  $0 -l\n  $0 -p\n  $0 -init\n  $0 --resume <buildId>")
+    .usage("用法:\n  $0 -l\n  $0 -p\n  $0 -i <buildId> --task <taskName>\n  $0 -init\n  $0 --resume <buildId>")
+    .updateStrings({
+      "Options:": "选项:",
+      "Show version number": "显示版本号",
+      "Show help": "显示帮助",
+      "Missing required argument: %s": "缺少必要参数: %s",
+    })
     .option("history", {
       type: "boolean",
       description: "查看今天的构建历史",
@@ -300,6 +371,15 @@ function createCli() {
       description: "查看所有 pipeline",
     })
     .alias("pipeline", "p")
+    .option("info", {
+      type: "string",
+      description: "查看某次构建里某个任务的详细信息",
+    })
+    .alias("info", "i")
+    .option("task", {
+      type: "string",
+      description: "配合 --info 使用，指定任务名",
+    })
     .option("init", {
       type: "boolean",
       description: "初始化数据库文件、表和 hugo-aiv 的 pipeline",
@@ -308,6 +388,7 @@ function createCli() {
       type: "string",
       description: "按 buildId 恢复失败构建",
     })
+    .implies("info", "task")
     .alias("h", "help")
     .help("help")
     .wrap(Math.min(100, process.stdout.columns || 100));
@@ -371,6 +452,45 @@ function renderKeyValueCard(title: string, rows: Array<[string, string]>) {
     console.log(`│ ${padCell(label, labelWidth)} │ ${padCell(value, valueWidth)} │`);
   });
   console.log(`└${"─".repeat(labelWidth + 2)}┴${"─".repeat(valueWidth + 2)}┘`);
+}
+
+function renderSplitCard({
+  title,
+  leftTitle,
+  rightTitle,
+  left,
+  right,
+}: {
+  title: string;
+  leftTitle: string;
+  rightTitle: string;
+  left: string;
+  right: string;
+}) {
+  const terminalWidth = Math.max(100, process.stdout.columns || 120);
+  const innerWidth = Math.max(terminalWidth - 4, 96);
+  const leftWidth = Math.max(Math.floor((innerWidth - 3) / 2), 30);
+  const rightWidth = innerWidth - leftWidth - 3;
+  const leftLines = toWrappedLines(left, leftWidth);
+  const rightLines = toWrappedLines(right, rightWidth);
+  const rowCount = Math.max(leftLines.length, rightLines.length);
+  const cardWidth = leftWidth + rightWidth + 7;
+
+  console.log(`┌${"─".repeat(cardWidth - 2)}┐`);
+  console.log(`│ ${padCell(title, cardWidth - 4)} │`);
+  console.log(`├${"─".repeat(leftWidth + 2)}┬${"─".repeat(rightWidth + 2)}┤`);
+  console.log(
+    `│ ${padCell(leftTitle, leftWidth)} │ ${padCell(rightTitle, rightWidth)} │`,
+  );
+  console.log(`├${"─".repeat(leftWidth + 2)}┼${"─".repeat(rightWidth + 2)}┤`);
+
+  for (let index = 0; index < rowCount; index += 1) {
+    console.log(
+      `│ ${padCell(leftLines[index] ?? "", leftWidth)} │ ${padCell(rightLines[index] ?? "", rightWidth)} │`,
+    );
+  }
+
+  console.log(`└${"─".repeat(leftWidth + 2)}┴${"─".repeat(rightWidth + 2)}┘`);
 }
 
 function renderRow(values: string[], widths: number[]) {
@@ -465,6 +585,28 @@ function stripAnsi(text: string) {
   return text.replace(/\u001B\[[0-9;]*m/g, "");
 }
 
+function toWrappedLines(text: string, width: number) {
+  const sourceLines = text.split("\n");
+  const wrapped: string[] = [];
+
+  sourceLines.forEach((line) => {
+    if (line === "") {
+      wrapped.push("");
+      return;
+    }
+
+    let rest = line;
+    while (stringWidth(rest) > width) {
+      const [chunk, remaining] = splitTextByWidth(rest, width);
+      wrapped.push(chunk);
+      rest = remaining;
+    }
+    wrapped.push(rest);
+  });
+
+  return wrapped;
+}
+
 function formatStartedAt(value: unknown) {
   if (!value || typeof value !== "string") {
     return "-";
@@ -475,6 +617,74 @@ function formatStartedAt(value: unknown) {
   }
   return parsed.format("MM-DD HH:mm:ss");
 }
+
+function formatPlainBlock(value: unknown) {
+  if (value === undefined || value === null || value === "") {
+    return "-";
+  }
+  return String(value);
+}
+
+function formatJsonBlock(value: unknown) {
+  if (value === undefined || value === null || value === "") {
+    return "-";
+  }
+
+  try {
+    const parsed = typeof value === "string" ? JSON.parse(value) : value;
+    return colorize(parsed, {
+      indent: 2,
+      colors: {
+        Whitespace: picocolors.white,
+        Brace: picocolors.dim,
+        Bracket: picocolors.dim,
+        Colon: picocolors.dim,
+        Comma: picocolors.dim,
+        StringKey: picocolors.cyan,
+        StringLiteral: picocolors.green,
+        NumberLiteral: picocolors.yellow,
+        BooleanLiteral: picocolors.magenta,
+        NullLiteral: picocolors.dim,
+      },
+    });
+  } catch (_error) {
+    return String(value);
+  }
+}
+
+function formatTaskDetails(sections: Array<[string, string]>) {
+  return sections
+    .filter(([, value]) => value !== "-")
+    .map(([label, value]) => `${label}:\n${value}`)
+    .join("\n\n");
+}
+
+function splitTextByWidth(text: string, maxWidth: number): [string, string] {
+  let visibleWidth = 0;
+  let index = 0;
+
+  while (index < text.length) {
+    const char = text[index];
+    if (char === "\u001B") {
+      const end = text.indexOf("m", index);
+      if (end === -1) {
+        break;
+      }
+      index = end + 1;
+      continue;
+    }
+
+    const charWidth = char.charCodeAt(0) > 255 ? 2 : 1;
+    if (visibleWidth + charWidth > maxWidth) {
+      break;
+    }
+    visibleWidth += charWidth;
+    index += 1;
+  }
+
+  return [text.slice(0, index), text.slice(index)];
+}
+
 
 async function resolveBuildSummary(
   db: Awaited<ReturnType<typeof createConnect>>,
