@@ -1,10 +1,52 @@
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { FetchTokenParams, FirTokenResult, UploadFirParams } from "../types";
 // import FormData from "form-data";
 import { log } from "@clack/prompts";
 import fetch, { FormData, fileFromSync } from "node-fetch";
 // import { version } from "os";
 // import { resolve } from "path";
+
+function formatErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.stack ?? error.message;
+  }
+
+  if (typeof error === "string") {
+    return error;
+  }
+
+  try {
+    return JSON.stringify(error);
+  } catch (_error) {
+    return String(error);
+  }
+}
+
+function summarizeCurlFailure(error: unknown, stderr: string, responseBody: string) {
+  const message = formatErrorMessage(error);
+  const curlCode = message.match(/curl:\s*\((\d+)\)\s*([^\n]+)/);
+  if (curlCode) {
+    return `curl(${curlCode[1]}): ${curlCode[2].trim()}`;
+  }
+
+  const firstStderrLine = stderr
+    .split("\n")
+    .map((line) => line.trim())
+    .find(Boolean);
+  if (firstStderrLine) {
+    return firstStderrLine;
+  }
+
+  const firstResponseLine = responseBody
+    .split("\n")
+    .map((line) => line.trim())
+    .find(Boolean);
+  if (firstResponseLine) {
+    return firstResponseLine;
+  }
+
+  return message.split("\n")[0] || "curl 上传失败";
+}
 
 export async function getToken(
   params: FetchTokenParams
@@ -16,21 +58,31 @@ export async function getToken(
     api_token: apiToken,
   });
   log.info(body);
-  log.info(JSON.stringify(body));
-  const result = await fetch("http://api.appmeta.cn/apps", {
-    method: "POST",
-    body,
-    headers: { "Content-Type": "application/json" },
-  })
-    .then((resp) => resp.json())
-    .catch((error) => {
-      log.error(error);
+
+  let result: unknown;
+  try {
+    const response = await fetch("http://api.appmeta.cn/apps", {
+      method: "POST",
+      body,
+      headers: { "Content-Type": "application/json" },
     });
+    result = await response.json();
+  } catch (error) {
+    const message = `获取 Fir token 失败: ${formatErrorMessage(error)}`;
+    log.error(message);
+    throw new Error(message);
+  }
+
   const binary = (
     result as {
       cert: { binary: { upload_url: string; key: string; token: string } };
     }
   ).cert.binary;
+
+  if (!binary?.upload_url || !binary.key || !binary.token) {
+    throw new Error(`Fir token 响应格式异常: ${JSON.stringify(result)}`);
+  }
+
   return {
     url: binary.upload_url,
     key: binary.key,
@@ -80,28 +132,83 @@ export async function upload(params: UploadFirParams) {
 }
 
 export async function uploadByCurl(params: UploadFirParams) {
-  try {
-    const { url, key, token, filepath, appName, versionCode, versionName } =
-      params;
-    // DEBUG
-    const command = `
-    curl -s -o /dev/null -F "key=${key}"              \
-       -F "token=${token}"           \
-       -F "file=@${filepath}"            \
-       -F "x:name=${appName}"             \
-       -F "x:version=${versionName}"         \
-       -F "x:build=${versionCode}"               \
-       -F "x:release_type=Adhoc"         \
-       ${url}
-    `;
-    console.log(command);
-    exec(command);
+  const { url, key, token, filepath, appName, versionCode, versionName } =
+    params;
 
-    return true;
-  } catch (error) {
-    console.log(error);
-  }
-  return false;
+  const args = [
+    "-sS",
+    "-w",
+    "\n__HTTP_CODE__:%{http_code}",
+    "-F",
+    `key=${key}`,
+    "-F",
+    `token=${token}`,
+    "-F",
+    `file=@${filepath}`,
+    "-F",
+    `x:name=${appName}`,
+    "-F",
+    `x:version=${versionName}`,
+    "-F",
+    `x:build=${versionCode}`,
+    "-F",
+    "x:release_type=Adhoc",
+    url,
+  ];
+
+  await new Promise<void>((resolve, reject) => {
+    execFile("curl", args, (error, stdout, stderr) => {
+      const output = typeof stdout === "string" ? stdout : String(stdout ?? "");
+      const errorOutput =
+        typeof stderr === "string" ? stderr : String(stderr ?? "");
+      const marker = "\n__HTTP_CODE__:";
+      const markerIndex = output.lastIndexOf(marker);
+      const responseBody =
+        markerIndex >= 0 ? output.slice(0, markerIndex).trim() : output.trim();
+      const httpCode =
+        markerIndex >= 0 ? output.slice(markerIndex + marker.length).trim() : "";
+
+      if (error) {
+        reject(
+          new Error(
+            [
+              `上传 Fir 失败: ${summarizeCurlFailure(
+                error,
+                errorOutput,
+                responseBody,
+              )}`,
+              httpCode ? `httpCode=${httpCode}` : "",
+              errorOutput ? `stderr=${errorOutput}` : "",
+              responseBody ? `response=${responseBody}` : "",
+            ]
+              .filter(Boolean)
+              .join("\n"),
+          ),
+        );
+        return;
+      }
+
+      if (!httpCode || Number(httpCode) >= 400) {
+        reject(
+          new Error(
+            [
+              "上传 Fir 失败: 上传接口返回异常",
+              httpCode ? `httpCode=${httpCode}` : "",
+              errorOutput ? `stderr=${errorOutput}` : "",
+              responseBody ? `response=${responseBody}` : "",
+            ]
+              .filter(Boolean)
+              .join("\n"),
+          ),
+        );
+        return;
+      }
+
+      resolve();
+    });
+  });
+
+  return true;
 }
 
 // DEBUG:

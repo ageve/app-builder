@@ -41,6 +41,9 @@ export default class Pipeline {
   beforeRun?: HookFn<unknown[]>;
   afterRun?: HookFn<unknown[]>;
   resumeState?: ResumeState;
+  lastRunBuildId?: string;
+  lastFailedTaskName?: string;
+  lastFailureReason?: string;
 
   constructor(options: Options, tasks: Task[]) {
     const projectName = basename(options.gitUri).replace(".git", "");
@@ -100,6 +103,9 @@ export default class Pipeline {
       ...this.context,
       ...(this.resumeState?.context ?? {}),
     };
+    this.lastRunBuildId = undefined;
+    this.lastFailedTaskName = undefined;
+    this.lastFailureReason = undefined;
     let dbInfo: Awaited<ReturnType<typeof initBuildHistoryDb>> | undefined;
     let buildId = "";
     let buildRunLockAcquired = false;
@@ -114,6 +120,7 @@ export default class Pipeline {
 
     try {
       buildId = this.resumeState?.buildId ?? nanoid(12);
+      this.lastRunBuildId = buildId;
       context.buildId = buildId;
       this.context.buildId = buildId;
 
@@ -247,6 +254,8 @@ export default class Pipeline {
             error instanceof Error ? error.message : String(error);
           const errorStack =
             error instanceof Error ? (error.stack ?? null) : null;
+          this.lastFailedTaskName = taskName;
+          this.lastFailureReason = errorMessage;
           await upsertBuildHistory(dbInfo.db, {
             pipelineId: dbInfo.pipelineId,
             buildId,
@@ -292,6 +301,13 @@ export default class Pipeline {
       if (error instanceof BuildAlreadyRunningError) {
         throw error;
       }
+      this.lastFailureReason =
+        error instanceof Error ? error.message : String(error);
+      log.error(
+        `[pipeId:${context.pipeId}] build aborted before task execution: ${
+          error instanceof Error ? error.stack ?? error.message : String(error)
+        }`,
+      );
       return false;
     } finally {
       removeSignalHandlers?.();

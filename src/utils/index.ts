@@ -3,11 +3,13 @@ export { importIfExistsAndValidate } from "./module";
 export { configSchema, type Config } from "./zodSchemas";
 export {
   acquireBuildRunLock,
+  clearBuildHistory,
   createBuildHistoryTable,
   createConnect,
   createReadonlyConnect,
   ensurePipeline,
   findBuildSummariesByBuildIdPrefix,
+  listBuildSummaries,
   getBuildHistoryByBuildId,
   getBuildSummaryByBuildId,
   getPipelineKey,

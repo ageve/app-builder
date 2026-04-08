@@ -28,7 +28,7 @@ async function uploadFir(
       platform,
       packageName: applicationId, // 来源于 .env
     });
-    await uploadByCurl({
+    const uploaded = await uploadByCurl({
       ...uploadWithToken,
       platform,
       appName: customAppName || appName,
@@ -36,11 +36,14 @@ async function uploadFir(
       versionName: versionName,
       filepath: file,
     });
+    if (!uploaded) {
+      throw new Error("上传 Fir 失败");
+    }
     return true;
   } catch (error) {
     console.log("上传 Fir.im 失败", error);
+    throw error instanceof Error ? error : new Error(String(error));
   }
-  return false;
 }
 
 export default function createUploadFir(

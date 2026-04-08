@@ -595,6 +595,32 @@ export async function listBuildSummariesByDate(
   return summaries.filter((item): item is BuildSummary => item !== null);
 }
 
+export async function listBuildSummaries(
+  db: Database,
+  limit = 10,
+): Promise<BuildSummary[]> {
+  const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.floor(limit)) : 10;
+  const statement = db.prepare(`
+    SELECT
+      build_id,
+      MAX(started_at) AS latest_started_at
+    FROM "${BUILD_HISTORY_TABLE_NAME}"
+    GROUP BY build_id
+    ORDER BY latest_started_at DESC, build_id DESC
+    LIMIT ?
+  `);
+  const buildIds = (await statement.all(safeLimit)) as Array<{ build_id: string }>;
+  const summaries = await Promise.all(
+    buildIds.map((item) => getBuildSummaryByBuildId(db, item.build_id)),
+  );
+  return summaries.filter((item): item is BuildSummary => item !== null);
+}
+
+export async function clearBuildHistory(db: Database) {
+  await db.exec(`DELETE FROM "${BUILD_HISTORY_TABLE_NAME}"`);
+  await db.exec(`DELETE FROM "${BUILD_LOCK_TABLE_NAME}"`);
+}
+
 export async function listPipelines(db: Database) {
   const statement = db.prepare(`
     SELECT

@@ -14,6 +14,7 @@ import {
 } from "./hugo-aiv/buildHugoAivApp";
 import { BuildAlreadyRunningError } from "../v2/pipeline";
 import {
+  clearBuildHistory,
   configSchema,
   createConnect,
   createReadonlyConnect,
@@ -22,16 +23,18 @@ import {
   getBuildSummaryByBuildId,
   initBuildHistoryDb,
   importIfExistsAndValidate,
-  listBuildSummariesByDate,
+  listBuildSummaries,
   listPipelines,
   type Config,
 } from "../utils";
 import type { BuildSummary } from "../utils/sqliteUtil";
 
 type CliArgs = {
+  clear?: boolean;
   pipeline?: boolean;
   init?: boolean;
   history?: boolean;
+  limit?: number;
   resume?: string;
   retry?: string;
   info?: string;
@@ -43,8 +46,10 @@ async function main() {
   const cli = createCli();
   const argv = (await cli.parse()) as CliArgs;
 
-  if (argv.history) {
-    await listTodayBuilds();
+  if (argv.clear) {
+    await clearAllBuildHistory();
+  } else if (argv.history) {
+    await listBuilds(argv.limit);
   } else if (argv.pipeline) {
     await listAllPipelines();
   } else if (argv.info) {
@@ -62,13 +67,17 @@ async function main() {
   }
 }
 
-async function listTodayBuilds() {
+async function listBuilds(limit = 10) {
   const db = await createReadonlyConnect();
   try {
-    const builds = hideSupersededBuilds(await listBuildSummariesByDate(db));
+    const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.floor(limit)) : 10;
+    const candidateLimit = Math.max(safeLimit * 5, safeLimit + 20);
+    const builds = hideSupersededBuilds(
+      await listBuildSummaries(db, candidateLimit),
+    ).slice(0, safeLimit);
 
     if (builds.length === 0) {
-      console.log("今天还没有构建记录。");
+      console.log("还没有构建记录。");
       return;
     }
 
@@ -112,6 +121,19 @@ async function listTodayBuilds() {
       ],
       rows: builds,
     });
+  } finally {
+    await db.close();
+  }
+}
+
+async function clearAllBuildHistory() {
+  const db = await createConnect();
+  try {
+    await clearBuildHistory(db);
+    renderKeyValueCard("Clear Build History", [
+      ["Result", "已清空所有 build history"],
+      ["Note", "只清理数据库历史，不删除 log 和 output"],
+    ]);
   } finally {
     await db.close();
   }
@@ -197,7 +219,7 @@ async function initHugoAivPipelines() {
 }
 
 async function resumeBuild(buildId: string) {
-  const db = await createReadonlyConnect();
+  const db = await createConnect();
   try {
     const summary = await resolveBuildSummary(db, buildId);
 
@@ -298,11 +320,6 @@ async function resumeBuild(buildId: string) {
 }
 
 async function showBuildTaskInfo(buildId: string, taskName?: string) {
-  if (!taskName) {
-    console.log("请同时传入 --task <taskName>。");
-    return;
-  }
-
   const db = await createReadonlyConnect();
   try {
     const summary = await resolveBuildSummary(db, buildId);
@@ -315,9 +332,14 @@ async function showBuildTaskInfo(buildId: string, taskName?: string) {
     }
 
     const history = await getBuildHistoryByBuildId(db, summary.buildId);
-    const taskRow = history.find((item) => item.task_name === taskName);
+    const failedTaskRow =
+      history.find((item) => item.status === "failed") ??
+      history.find((item) => item.status === "interrupted");
+    const taskRow = taskName
+      ? history.find((item) => item.task_name === taskName)
+      : failedTaskRow ?? history[history.length - 1];
 
-    if (!taskRow) {
+    if (taskName && !taskRow) {
       renderKeyValueCard("构建详情", [
         ["BuildId", toResumeId(summary.buildId)],
         ["Task", taskName],
@@ -328,30 +350,41 @@ async function showBuildTaskInfo(buildId: string, taskName?: string) {
 
     renderKeyValueCard("构建详情", [
       ["BuildId", toResumeId(summary.buildId)],
-      ["Task", taskRow.task_name ?? taskName],
-      ["Status", taskRow.status ?? "-"],
-      ["PipeId", taskRow.pipe_id ?? summary.pipeId],
-      ["StartedAt", formatStartedAt(taskRow.started_at)],
-      ["FinishedAt", formatStartedAt(taskRow.finished_at)],
+      ["Status", summary.status],
+      ["PipeId", summary.pipeId],
+      ["Project", summary.projectName],
+      ["Env", summary.env ?? "-"],
+      ["Branch", summary.branch ?? "-"],
+      ["Platform", summary.platform ?? "-"],
+      ["StartedAt", formatStartedAt(summary.startedAt)],
+      ["FinishedAt", formatStartedAt(summary.finishedAt)],
     ]);
 
-    renderSplitCard({
-      title: "任务详情",
-      leftTitle: "输入上下文",
-      rightTitle: "输出结果",
-      left: formatTaskDetails([
-        ["taskInput", formatJsonBlock(taskRow.task_input)],
-        ["cwd", formatPlainBlock(taskRow.cwd)],
-        ["logFile", formatPlainBlock(taskRow.log_file)],
-        ["buildOptions", formatJsonBlock(taskRow.build_options)],
+    if (summary.status === "failed" || summary.status === "interrupted") {
+      renderKeyValueCard("失败信息", [
+        ["Task", failedTaskRow?.task_name ?? summary.failedTaskName ?? "-"],
+        [
+          "Reason",
+          formatPlainBlock(
+            failedTaskRow?.error_message ??
+              (summary.status === "interrupted" ? "Interrupted" : "-"),
+          ),
+        ],
+      ]);
+      return;
+    }
+
+    renderTextCard(
+      taskName ? `任务上下文 · ${taskRow?.task_name ?? taskName}` : "Build Context",
+      formatTaskDetails([
+        ["task", formatPlainBlock(taskRow?.task_name)],
+        ["taskInput", formatJsonBlock(taskRow?.task_input)],
+        ["logFile", formatPlainBlock(taskRow?.log_file)],
+        ...(taskName
+          ? [["taskOutput", formatJsonBlock(taskRow?.task_output)] as [string, string]]
+          : []),
       ]),
-      right: formatTaskDetails([
-        ["taskOutput", formatJsonBlock(taskRow.task_output)],
-        ["contextKey", formatPlainBlock(taskRow.context_output_key)],
-        ["errorMessage", formatPlainBlock(taskRow.error_message)],
-        ["errorStack", formatPlainBlock(taskRow.error_stack)],
-      ]),
-    });
+    );
   } finally {
     await db.close();
   }
@@ -363,9 +396,15 @@ async function retryBuildFromTask(buildId: string, taskName?: string) {
     return;
   }
 
-  const db = await createReadonlyConnect();
+  const db = await createConnect();
+  let summary: Awaited<ReturnType<typeof resolveBuildSummary>> | null = null;
+  let taskIndex: number | null = null;
+  let pipeId = "";
+  let workspace: string | undefined;
+  let buildOptions: Record<string, unknown> = {};
+  let retryContext: Record<string, unknown> = {};
   try {
-    const summary = await resolveBuildSummary(db, buildId);
+    summary = await resolveBuildSummary(db, buildId);
     if (!summary) {
       renderKeyValueCard("Retry", [
         ["BuildId", buildId],
@@ -414,31 +453,11 @@ async function retryBuildFromTask(buildId: string, taskName?: string) {
       return;
     }
 
-    const config = await loadHugoAivConfig();
-    const buildOptions = (summary.buildOptions ?? {}) as Record<
-      string,
-      unknown
-    >;
-    const pipelines = createHugoAivPipelines({
-      config,
-      pipelines: [summary.pipeId],
-      args: {
-        autoVersionCode:
-          typeof buildOptions.autoVersionCode === "boolean"
-            ? buildOptions.autoVersionCode
-            : undefined,
-        legacyVersioning:
-          typeof buildOptions.legacyVersioning === "boolean"
-            ? buildOptions.legacyVersioning
-            : undefined,
-        dryRun: false,
-      },
-      workspace: summary.workspace ?? undefined,
-      clean: false,
-    });
-
-    const pipeline = pipelines[0];
-    const retryContext = restoreContextFromHistory(history, taskRow.task_index);
+    taskIndex = taskRow.task_index;
+    pipeId = summary.pipeId;
+    workspace = summary.workspace ?? undefined;
+    buildOptions = (summary.buildOptions ?? {}) as Record<string, unknown>;
+    retryContext = restoreContextFromHistory(history, taskRow.task_index);
 
     renderKeyValueCard("Retry", [
       ["SourceBuildId", toResumeId(summary.buildId)],
@@ -447,35 +466,71 @@ async function retryBuildFromTask(buildId: string, taskName?: string) {
       ["Status", summary.status],
       ["Result", "将从这个任务开始重新执行后续步骤"],
     ]);
+  } finally {
+    await db.close();
+  }
 
-    log.info(
-      `retry sourceBuildId=${summary.buildId}, from taskIndex=${taskRow.task_index}, taskName=${taskName}`,
+  if (!summary || taskIndex === null) {
+    return;
+  }
+
+  const config = await loadHugoAivConfig();
+  const pipelines = createHugoAivPipelines({
+    config,
+    pipelines: [pipeId],
+    args: {
+      autoVersionCode:
+        typeof buildOptions.autoVersionCode === "boolean"
+          ? buildOptions.autoVersionCode
+          : undefined,
+      legacyVersioning:
+        typeof buildOptions.legacyVersioning === "boolean"
+          ? buildOptions.legacyVersioning
+          : undefined,
+      dryRun: false,
+    },
+    workspace,
+    clean: false,
+  });
+
+  const pipeline = pipelines[0];
+
+  log.info(
+    `retry sourceBuildId=${summary.buildId}, from taskIndex=${taskIndex}, taskName=${taskName}`,
+  );
+
+  try {
+    const success = await runPipelineFromTask(
+      pipeline,
+      taskIndex,
+      retryContext,
     );
+    const resultRows: Array<[string, string]> = [
+      ["SourceBuildId", toResumeId(summary.buildId)],
+      ["RetryBuildId", toResumeId(pipeline.lastRunBuildId)],
+      ["FromTask", taskName],
+      ["Result", success ? "重试执行完成" : "重试执行失败"],
+    ];
 
-    try {
-      const success = await runPipelineFromTask(
-        pipeline,
-        taskRow.task_index,
-        retryContext,
-      );
+    if (!success && pipeline.lastFailedTaskName) {
+      resultRows.push(["FailedTask", pipeline.lastFailedTaskName]);
+    }
+
+    if (!success && pipeline.lastFailureReason) {
+      resultRows.push(["Reason", pipeline.lastFailureReason]);
+    }
+
+    renderKeyValueCard("Retry Result", resultRows);
+  } catch (error) {
+    if (error instanceof BuildAlreadyRunningError) {
       renderKeyValueCard("Retry Result", [
         ["SourceBuildId", toResumeId(summary.buildId)],
         ["FromTask", taskName],
-        ["Result", success ? "重试执行完成" : "重试执行失败"],
+        ["Result", "这条构建当前正在执行，请稍后再试"],
       ]);
-    } catch (error) {
-      if (error instanceof BuildAlreadyRunningError) {
-        renderKeyValueCard("Retry Result", [
-          ["SourceBuildId", toResumeId(summary.buildId)],
-          ["FromTask", taskName],
-          ["Result", "这条构建当前正在执行，请稍后再试"],
-        ]);
-        return;
-      }
-      throw error;
+      return;
     }
-  } finally {
-    await db.close();
+    throw error;
   }
 }
 
@@ -635,7 +690,7 @@ function normalizeCliArgs(args: string[]) {
 function createCli() {
   return yargs(normalizeCliArgs(hideBin(process.argv)))
     .scriptName("bun run src/cli/mod.ts")
-    .usage("用法:\n  $0 -l\n  $0 -p\n  $0 -i <buildId> --task <taskName>\n  $0 --retry <buildId> --task <taskName>\n  $0 --upload <buildId>\n  $0 -init\n  $0 --resume <buildId>")
+    .usage("用法:\n  $0 -l [--limit 10]\n  $0 --clear\n  $0 -p\n  $0 -i <buildId> --task <taskName>\n  $0 --retry <buildId> --task <taskName>\n  $0 --upload <buildId>\n  $0 -init\n  $0 --resume <buildId>")
     .updateStrings({
       "Options:": "选项:",
       "Show version number": "显示版本号",
@@ -644,9 +699,18 @@ function createCli() {
     })
     .option("history", {
       type: "boolean",
-      description: "查看今天的构建历史",
+      description: "查看最近的构建历史",
     })
     .alias("history", "l")
+    .option("limit", {
+      type: "number",
+      description: "配合 -l 使用，限制显示条数，默认 10",
+      default: 10,
+    })
+    .option("clear", {
+      type: "boolean",
+      description: "清空所有 build history，仅清理数据库，不删除 log 和 output",
+    })
     .option("pipeline", {
       type: "boolean",
       description: "查看所有 pipeline",
@@ -654,12 +718,12 @@ function createCli() {
     .alias("pipeline", "p")
     .option("info", {
       type: "string",
-      description: "查看某次构建里某个任务的详细信息",
+      description: "查看某次构建详情；可选配合 --task 查看指定任务上下文",
     })
     .alias("info", "i")
     .option("task", {
       type: "string",
-      description: "配合 --info 使用，指定任务名",
+      description: "配合 --info 或 --retry 使用，指定任务名",
     })
     .option("retry", {
       type: "string",
@@ -677,7 +741,6 @@ function createCli() {
       type: "string",
       description: "按 buildId 恢复失败构建",
     })
-    .implies("info", "task")
     .implies("retry", "task")
     .alias("h", "help")
     .help("help")
@@ -731,56 +794,44 @@ function renderTable({
 }
 
 function renderKeyValueCard(title: string, rows: Array<[string, string]>) {
+  const terminalWidth = Math.max(80, process.stdout.columns || 120);
   const labelWidth = Math.max(...rows.map(([label]) => stringWidth(label)), stringWidth(title));
-  const valueWidth = Math.max(...rows.map(([, value]) => stringWidth(value)));
+  const maxValueWidth = Math.max(terminalWidth - labelWidth - 7, 20);
+  const wrappedRows = rows.map(([label, value]) => [
+    label,
+    toWrappedLines(value, maxValueWidth),
+  ] as const);
+  const valueWidth = Math.min(
+    maxValueWidth,
+    Math.max(...wrappedRows.flatMap(([, lines]) => lines.map((line) => stringWidth(line))), 0),
+  );
   const totalWidth = labelWidth + valueWidth + 7;
 
   console.log(`┌${"─".repeat(totalWidth - 2)}┐`);
   console.log(`│ ${padCell(title, totalWidth - 4)} │`);
   console.log(`├${"─".repeat(labelWidth + 2)}┬${"─".repeat(valueWidth + 2)}┤`);
-  rows.forEach(([label, value]) => {
-    console.log(`│ ${padCell(label, labelWidth)} │ ${padCell(value, valueWidth)} │`);
+  wrappedRows.forEach(([label, lines]) => {
+    lines.forEach((line, index) => {
+      console.log(
+        `│ ${padCell(index === 0 ? label : "", labelWidth)} │ ${padCell(line, valueWidth)} │`,
+      );
+    });
   });
   console.log(`└${"─".repeat(labelWidth + 2)}┴${"─".repeat(valueWidth + 2)}┘`);
 }
 
-function renderSplitCard({
-  title,
-  leftTitle,
-  rightTitle,
-  left,
-  right,
-}: {
-  title: string;
-  leftTitle: string;
-  rightTitle: string;
-  left: string;
-  right: string;
-}) {
-  const terminalWidth = Math.max(100, process.stdout.columns || 120);
-  const innerWidth = Math.max(terminalWidth - 4, 96);
-  const leftWidth = Math.max(Math.floor((innerWidth - 3) / 2), 30);
-  const rightWidth = innerWidth - leftWidth - 3;
-  const leftLines = toWrappedLines(left, leftWidth);
-  const rightLines = toWrappedLines(right, rightWidth);
-  const rowCount = Math.max(leftLines.length, rightLines.length);
-  const cardWidth = leftWidth + rightWidth + 7;
+function renderTextCard(title: string, content: string) {
+  const terminalWidth = Math.max(80, process.stdout.columns || 120);
+  const innerWidth = Math.max(Math.min(terminalWidth - 4, 120), 40);
+  const lines = toWrappedLines(content || "-", innerWidth);
 
-  console.log(`┌${"─".repeat(cardWidth - 2)}┐`);
-  console.log(`│ ${padCell(title, cardWidth - 4)} │`);
-  console.log(`├${"─".repeat(leftWidth + 2)}┬${"─".repeat(rightWidth + 2)}┤`);
-  console.log(
-    `│ ${padCell(leftTitle, leftWidth)} │ ${padCell(rightTitle, rightWidth)} │`,
-  );
-  console.log(`├${"─".repeat(leftWidth + 2)}┼${"─".repeat(rightWidth + 2)}┤`);
-
-  for (let index = 0; index < rowCount; index += 1) {
-    console.log(
-      `│ ${padCell(leftLines[index] ?? "", leftWidth)} │ ${padCell(rightLines[index] ?? "", rightWidth)} │`,
-    );
-  }
-
-  console.log(`└${"─".repeat(leftWidth + 2)}┴${"─".repeat(rightWidth + 2)}┘`);
+  console.log(`┌${"─".repeat(innerWidth + 2)}┐`);
+  console.log(`│ ${padCell(title, innerWidth)} │`);
+  console.log(`├${"─".repeat(innerWidth + 2)}┤`);
+  lines.forEach((line) => {
+    console.log(`│ ${padCell(line, innerWidth)} │`);
+  });
+  console.log(`└${"─".repeat(innerWidth + 2)}┘`);
 }
 
 function renderRow(values: string[], widths: number[]) {

@@ -183,7 +183,7 @@ export function createHugoAivPipelines({
                   `${packageAlias}.ExportOptions.appstore.plist`,
                 ),
               },
-              ipaName: "AIdev",
+              ipaName: "aiv",
               distributions:
                 env === "alpha" ? ["adHoc"] : ["adHoc", "appStore"],
             }),
