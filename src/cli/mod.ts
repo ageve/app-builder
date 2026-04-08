@@ -31,6 +31,7 @@ type CliArgs = {
   init?: boolean;
   history?: boolean;
   resume?: string;
+  retry?: string;
   info?: string;
   task?: string;
   upload?: string;
@@ -48,6 +49,8 @@ async function main() {
     await showBuildTaskInfo(argv.info, argv.task);
   } else if (argv.upload) {
     await uploadBuildToAppStore(argv.upload);
+  } else if (argv.retry) {
+    await retryBuildFromTask(argv.retry, argv.task);
   } else if (argv.init) {
     await initHugoAivPipelines();
   } else if (argv.resume) {
@@ -79,6 +82,7 @@ async function listTodayBuilds() {
         },
         { key: "status", title: "Status", maxWidth: 11, minWidth: 11, hardMinWidth: 11 },
         { key: "pipeId", title: "PipeId", maxWidth: 34, minWidth: 12, hardMinWidth: 10 },
+        { key: "startTaskName", title: "StartTask", maxWidth: 16, minWidth: 10 },
         { key: "env", title: "Env", maxWidth: 12, minWidth: 7 },
         { key: "branch", title: "Branch", maxWidth: 12, minWidth: 8 },
         { key: "platform", title: "Platform", maxWidth: 10, minWidth: 8 },
@@ -337,6 +341,116 @@ async function showBuildTaskInfo(buildId: string, taskName?: string) {
   }
 }
 
+async function retryBuildFromTask(buildId: string, taskName?: string) {
+  if (!taskName) {
+    console.log("请同时传入 --task <taskName>。");
+    return;
+  }
+
+  const db = await createConnect();
+  try {
+    const summary = await resolveBuildSummary(db, buildId);
+    if (!summary) {
+      renderKeyValueCard("Retry", [
+        ["BuildId", buildId],
+        ["Result", "未找到这条构建记录"],
+      ]);
+      return;
+    }
+
+    if (summary.projectName !== "hugo-aiv-app") {
+      renderKeyValueCard("Retry", [
+        ["BuildId", toResumeId(summary.buildId)],
+        ["Project", summary.projectName],
+        ["Result", "当前只支持重试 hugo-aiv-app"],
+      ]);
+      return;
+    }
+
+    const history = await getBuildHistoryByBuildId(db, summary.buildId);
+    const taskRow = history.find((item) => item.task_name === taskName);
+
+    if (!taskRow) {
+      renderKeyValueCard("Retry", [
+        ["BuildId", toResumeId(summary.buildId)],
+        ["Task", taskName],
+        ["Result", "这次构建里没有这个任务"],
+      ]);
+      return;
+    }
+
+    if (taskRow.status !== "success") {
+      renderKeyValueCard("Retry", [
+        ["BuildId", toResumeId(summary.buildId)],
+        ["Task", taskName],
+        ["Status", taskRow.status ?? "-"],
+        ["Result", "这个任务还没成功完成，不能用 retry，请改用 resume"],
+      ]);
+      return;
+    }
+
+    if (typeof taskRow.task_index !== "number") {
+      renderKeyValueCard("Retry", [
+        ["BuildId", toResumeId(summary.buildId)],
+        ["Task", taskName],
+        ["Result", "没找到这个任务的执行顺序"],
+      ]);
+      return;
+    }
+
+    const config = await loadHugoAivConfig();
+    const buildOptions = (summary.buildOptions ?? {}) as Record<
+      string,
+      unknown
+    >;
+    const pipelines = createHugoAivPipelines({
+      config,
+      pipelines: [summary.pipeId],
+      args: {
+        autoVersionCode:
+          typeof buildOptions.autoVersionCode === "boolean"
+            ? buildOptions.autoVersionCode
+            : undefined,
+        legacyVersioning:
+          typeof buildOptions.legacyVersioning === "boolean"
+            ? buildOptions.legacyVersioning
+            : undefined,
+        dryRun: false,
+      },
+      workspace: summary.workspace ?? undefined,
+      clean: false,
+    });
+
+    const pipeline = pipelines[0];
+    const retryContext = restoreContextFromHistory(history, taskRow.task_index);
+
+    renderKeyValueCard("Retry", [
+      ["SourceBuildId", toResumeId(summary.buildId)],
+      ["Task", taskName],
+      ["PipeId", summary.pipeId],
+      ["Status", summary.status],
+      ["Result", "将从这个任务开始重新执行后续步骤"],
+    ]);
+
+    log.info(
+      `retry sourceBuildId=${summary.buildId}, from taskIndex=${taskRow.task_index}, taskName=${taskName}`,
+    );
+
+    const success = await runPipelineFromTask(
+      pipeline,
+      taskRow.task_index,
+      retryContext,
+    );
+    renderKeyValueCard("Retry Result", [
+      ["SourceBuildId", toResumeId(summary.buildId)],
+      ["FromTask", taskName],
+      ["Result", success ? "重试执行完成" : "重试执行失败"],
+    ]);
+  } finally {
+    await db.close();
+  }
+}
+
 async function uploadBuildToAppStore(buildId: string) {
   const db = await createConnect();
   try {
@@ -483,6 +597,9 @@ function normalizeCliArgs(args: string[]) {
     if (arg === "-resume") {
       return "--resume";
     }
+    if (arg === "-retry") {
+      return "--retry";
+    }
     return arg;
   });
 }
@@ -490,7 +607,7 @@ function normalizeCliArgs(args: string[]) {
 function createCli() {
   return yargs(normalizeCliArgs(hideBin(process.argv)))
     .scriptName("bun run src/cli/mod.ts")
-    .usage("用法:\n  $0 -l\n  $0 -p\n  $0 -i <buildId> --task <taskName>\n  $0 --upload <buildId>\n  $0 -init\n  $0 --resume <buildId>")
+    .usage("用法:\n  $0 -l\n  $0 -p\n  $0 -i <buildId> --task <taskName>\n  $0 --retry <buildId> --task <taskName>\n  $0 --upload <buildId>\n  $0 -init\n  $0 --resume <buildId>")
     .updateStrings({
       "Options:": "选项:",
       "Show version number": "显示版本号",
@@ -516,6 +633,10 @@ function createCli() {
       type: "string",
       description: "配合 --info 使用，指定任务名",
     })
+    .option("retry", {
+      type: "string",
+      description: "从某次构建里指定任务开始重新执行后续步骤",
+    })
     .option("upload", {
       type: "string",
       description: "将某次 iOS 构建产出的 IPA 上传到 App Store Connect",
@@ -529,6 +650,7 @@ function createCli() {
       description: "按 buildId 恢复失败构建",
     })
     .implies("info", "task")
+    .implies("retry", "task")
     .alias("h", "help")
     .help("help")
     .wrap(Math.min(100, process.stdout.columns || 100));
@@ -809,6 +931,18 @@ function parseJsonValue(value: unknown) {
   } catch (_error) {
     return null;
   }
+}
+
+async function runPipelineFromTask(
+  pipeline: ReturnType<typeof createHugoAivPipelines>[number],
+  startTaskIndex: number,
+  context: Record<string, unknown>,
+) {
+  pipeline.setResumeState({
+    startTaskIndex,
+    context,
+  });
+  return pipeline.run();
 }
 
 function splitTextByWidth(text: string, maxWidth: number): [string, string] {

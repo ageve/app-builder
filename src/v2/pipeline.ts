@@ -16,7 +16,7 @@ import { createLogger, formatRunningTime } from "./utils/common";
 type HookFn<T extends unknown[]> = (...args: T) => Promise<void>;
 
 type ResumeState = {
-  buildId: string;
+  buildId?: string;
   startTaskIndex: number;
   context: Record<string, unknown>;
 };

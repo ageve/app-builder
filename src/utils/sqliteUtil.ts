@@ -51,6 +51,8 @@ export type BuildSummary = {
   startedAt: string;
   finishedAt?: string | null;
   status: "failed" | "success" | "running" | "interrupted";
+  startTaskName?: string | null;
+  startTaskIndex?: number | null;
   failedTaskName?: string | null;
   failedTaskIndex?: number | null;
   taskCount: number;
@@ -428,6 +430,9 @@ export async function getBuildSummaryByBuildId(
         : history.every((item) => item.status === "success")
           ? "success"
           : "running",
+    startTaskName: first.task_name ?? null,
+    startTaskIndex:
+      typeof first.task_index === "number" ? first.task_index : null,
     failedTaskName: failedTask?.task_name ?? interruptedTask?.task_name ?? null,
     failedTaskIndex:
       typeof failedTask?.task_index === "number"
