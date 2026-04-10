@@ -49,6 +49,54 @@ export default config;
 bun run src/cli/main.ts
 ```
 
+命令行模式请看：
+
+- [CLI.md](/Users/ben/Documents/workspace/business/app-builder/CLI.md)
+
+### CLI 快速上手
+
+查看帮助：
+
+```bash
+bun cli -h
+```
+
+最常用的几个命令：
+
+```bash
+bun cli init
+bun cli history --limit 10
+bun cli info petdwVMJkImB
+bun cli resume petdwVMJkImB
+bun cli retry petdwVMJkImB --task uploadQiniu
+```
+
+直接发起构建：
+
+```bash
+bun cli build --app hookAi --env production --branch main --platform android
+```
+
+同时构建多个平台：
+
+```bash
+bun cli build --app hookAi --env production --branch main --platform ios,android
+```
+
+Android 跳过清理直接构建：
+
+```bash
+bun cli build --app hookAi --env production --branch main --platform android --android:buildAndroid.clear false
+```
+
+`build` 当前规则：
+
+- 必填参数：`--app`、`--env`、`--branch`、`--platform`
+- `--platform` 支持多个值，逗号分隔，例如 `ios,android`
+- 平台专属参数格式：`--平台:任务名.参数名 值`
+- 当前已支持：`--android:buildAndroid.clear false`
+- 缺少必填参数时会直接报错，不会弹选择框
+
 ## 版本管理策略
 
 构建系统使用基于语义化版本和 git 提交信息的自动版本管理策略。

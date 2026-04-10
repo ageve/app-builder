@@ -505,9 +505,7 @@ export async function getBuildSummaryByBuildId(
   const failedTask = history.find((item) => item.status === "failed");
   const interruptedTask = history.find((item) => item.status === "interrupted");
   const last = history[history.length - 1];
-  const prepareEnvOutput = parseDbJson(
-    prepareEnvTask?.task_output,
-  ) as Record<string, unknown> | null;
+  const versionInfo = extractVersionInfoFromHistory(history);
 
   return {
     buildId,
@@ -528,14 +526,8 @@ export async function getBuildSummaryByBuildId(
         : history.every((item) => item.status === "success")
           ? "success"
           : "running",
-    versionCode:
-      typeof prepareEnvOutput?.versionCode === "string"
-        ? prepareEnvOutput.versionCode
-        : null,
-    versionName:
-      typeof prepareEnvOutput?.versionName === "string"
-        ? prepareEnvOutput.versionName
-        : null,
+    versionCode: versionInfo.versionCode,
+    versionName: versionInfo.versionName,
     startTaskName: first.task_name ?? null,
     startTaskIndex:
       typeof first.task_index === "number" ? first.task_index : null,
@@ -547,6 +539,58 @@ export async function getBuildSummaryByBuildId(
           ? interruptedTask.task_index
           : null,
     taskCount: history.length,
+  };
+}
+
+function extractVersionInfoFromHistory(history: Array<Record<string, any>>) {
+  const prepareEnvTask = history.find((item) => item.task_name === "prepareEnv");
+  const prepareEnvOutput = parseDbJson(
+    prepareEnvTask?.task_output,
+  ) as Record<string, unknown> | null;
+
+  if (
+    typeof prepareEnvOutput?.versionCode === "string" ||
+    typeof prepareEnvOutput?.versionName === "string"
+  ) {
+    return {
+      versionCode:
+        typeof prepareEnvOutput?.versionCode === "string"
+          ? prepareEnvOutput.versionCode
+          : null,
+      versionName:
+        typeof prepareEnvOutput?.versionName === "string"
+          ? prepareEnvOutput.versionName
+          : null,
+    };
+  }
+
+  for (const item of history) {
+    const taskInput = parseDbJson(item.task_input) as Record<string, unknown> | null;
+    const prepareEnvInput =
+      taskInput && typeof taskInput.prepareEnv === "object"
+        ? (taskInput.prepareEnv as Record<string, unknown>)
+        : null;
+
+    if (
+      typeof prepareEnvInput?.versionCode === "string" ||
+      typeof prepareEnvInput?.versionName === "string"
+    ) {
+      return {
+        versionCode:
+          typeof prepareEnvInput?.versionCode === "string"
+            ? prepareEnvInput.versionCode
+            : null,
+        versionName:
+          typeof prepareEnvInput?.versionName === "string"
+            ? prepareEnvInput.versionName
+            : null,
+      };
+    }
+  }
+
+  return {
+    versionCode: null,
+    versionName: null,
   };
 }
 

@@ -43,6 +43,18 @@ export function getHugoAivPipelineOptions() {
   return [...pipelineOptions];
 }
 
+export type HugoAivTaskOptions = {
+  android?: {
+    buildAndroid?: {
+      clear?: boolean;
+    };
+  };
+};
+
+export type HugoAivPipelineArgs = Args & {
+  taskOptions?: HugoAivTaskOptions;
+};
+
 export async function buildHugoAivApp() {
   try {
     const result = await importIfExistsAndValidate(
@@ -121,7 +133,7 @@ export function createHugoAivPipelines({
 }: {
   config: Config;
   pipelines: string[];
-  args: Args;
+  args: HugoAivPipelineArgs;
   workspace?: string;
   clean?: boolean;
 }) {
@@ -146,6 +158,7 @@ export function createHugoAivPipelines({
 
     const autoVersionCode = env === "production" || args.autoVersionCode;
     const legacyVersioning = args.legacyVersioning || false;
+    const androidBuildClear = args.taskOptions?.android?.buildAndroid?.clear ?? true;
 
     const agconnectFile = resolve(
       cwd(),
@@ -163,7 +176,7 @@ export function createHugoAivPipelines({
                 target: "./android/app/agconnect-services.json",
               },
             ]),
-            createBuildAndroid({ clean: true }),
+            createBuildAndroid({ clean: androidBuildClear }),
             copyToFileBrowser,
           ]
         : [
@@ -252,6 +265,13 @@ export function createHugoAivPipelines({
           packageAlias,
           autoVersionCode: Boolean(autoVersionCode),
           legacyVersioning,
+          taskOptions: {
+            android: {
+              buildAndroid: {
+                clear: androidBuildClear,
+              },
+            },
+          },
         },
       },
       tasks,

@@ -6,8 +6,7 @@ import { setTaskName } from "../utils/common";
 async function buildAndroid(context: any, options?: { clean?: boolean }) {
   try {
     const { workspace, output, prepareEnv, logger, env } = context;
-    const { versionName, applicationId, envFileCache } =
-      prepareEnv;
+    const { versionName, applicationId, envFileCache } = prepareEnv;
     cd(resolve(workspace, "./android"));
     await $`pwd`;
     $.env = {
@@ -22,11 +21,7 @@ async function buildAndroid(context: any, options?: { clean?: boolean }) {
 
     await $`./gradlew assembleRelease -q -Dorg.gradle.logging.level=quiet`;
 
-    const names = [
-      applicationId,
-      versionName,
-      env ?? "",
-    ];
+    const names = [applicationId, versionName, env ?? ""];
     const productFile = (abi = "") =>
       `${output}/${[...names, abi].filter((it) => it).join("_")}.apk`;
     // TODO：准确的获取到 gradle 产出物；这个是定义到 build.gradle 里的

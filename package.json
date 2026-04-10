@@ -5,9 +5,8 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "build": "tsc",
-    "build:hugoGame": "npm run build && zx ./buildHugoGameAlpha.mjs",
-    "test": "bun test"
+    "build": "bun run src/cli/main.ts",
+    "cli": "bun run src/cli/mod.ts"
   },
   "dependencies": {
     "@clack/prompts": "^0.11.0",

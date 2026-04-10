@@ -10,9 +10,21 @@ import { hideBin } from "yargs/helpers";
 import { $ } from "zx";
 import {
   createHugoAivPipelines,
+  type HugoAivPipelineArgs,
   getHugoAivPipelineOptions,
 } from "./hugo-aiv/buildHugoAivApp";
+import {
+  createBuildPipelineIds,
+  createPipelineArgsFromBuildOptions,
+  extractTaskOptionsFromArgv,
+  parseBuildPlatforms,
+  type SupportedBuildPlatform,
+  SUPPORTED_BUILD_APPS,
+  SUPPORTED_BUILD_BRANCHES,
+  SUPPORTED_BUILD_ENVS,
+} from "./modHelpers";
 import { BuildAlreadyRunningError } from "../v2/pipeline";
+import { pipelineRun } from "../v2/pipelineRun";
 import {
   clearBuildHistory,
   configSchema,
@@ -30,47 +42,82 @@ import {
 import type { BuildSummary } from "../utils/sqliteUtil";
 
 type CliArgs = {
+  _: Array<string | number>;
+  buildId?: string;
   clear?: boolean;
-  pipeline?: boolean;
-  init?: boolean;
-  history?: boolean;
   limit?: number;
-  resume?: string;
-  retry?: string;
-  info?: string;
   task?: string;
-  upload?: string;
+  app?: string;
+  env?: string;
+  branch?: string;
+  platform?: string[] | string;
+  autoVersionCode?: boolean;
+  legacyVersioning?: boolean;
+  "android:buildAndroid.clear"?: boolean;
 };
 
 async function main() {
   const cli = createCli();
   const argv = (await cli.parse()) as CliArgs;
+  const command = typeof argv._[0] === "string" ? argv._[0] : "";
 
-  if (argv.clear) {
-    await clearAllBuildHistory();
-  } else if (argv.history) {
+  if (command === "history") {
+    if (argv.clear) {
+      await clearAllBuildHistory();
+      return;
+    }
     await listBuilds(argv.limit);
-  } else if (argv.pipeline) {
-    await listAllPipelines();
-  } else if (argv.info) {
-    await showBuildTaskInfo(argv.info, argv.task);
-  } else if (argv.upload) {
-    await uploadBuildToAppStore(argv.upload);
-  } else if (argv.retry) {
-    await retryBuildFromTask(argv.retry, argv.task);
-  } else if (argv.init) {
-    await initHugoAivPipelines();
-  } else if (argv.resume) {
-    await resumeBuild(argv.resume);
-  } else {
-    cli.showHelp();
+    return;
   }
+
+  if (command === "pipeline") {
+    await listAllPipelines();
+    return;
+  }
+
+  if (command === "info") {
+    await showBuildTaskInfo(String(argv.buildId ?? ""), argv.task);
+    return;
+  }
+
+  if (command === "retry") {
+    await retryBuildFromTask(String(argv.buildId ?? ""), argv.task);
+    return;
+  }
+
+  if (command === "init") {
+    await initHugoAivPipelines();
+    return;
+  }
+
+  if (command === "resume") {
+    await resumeBuild(String(argv.buildId ?? ""));
+    return;
+  }
+
+  if (command === "build") {
+    await buildHugoAivFromCommand(argv);
+    return;
+  }
+
+  if (command === "asc") {
+    const ascAction = typeof argv._[1] === "string" ? argv._[1] : "";
+    if (ascAction === "upload") {
+      await uploadBuildToAppStore(String(argv.buildId ?? ""));
+      return;
+    }
+    exitWithCliError(`不支持的 asc 子命令: ${ascAction || "-"}`);
+  }
+
+  cli.showHelp();
 }
 
 async function listBuilds(limit = 10) {
   const db = await createReadonlyConnect();
   try {
-    const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.floor(limit)) : 10;
+    const safeLimit = Number.isFinite(limit)
+      ? Math.max(1, Math.floor(limit))
+      : 10;
     const candidateLimit = Math.max(safeLimit * 5, safeLimit + 20);
     const builds = hideSupersededBuilds(
       await listBuildSummaries(db, candidateLimit),
@@ -91,11 +138,38 @@ async function listBuilds(limit = 10) {
           hardMinWidth: 12,
           render: (row, width) => formatCell(toResumeId(row.buildId), width),
         },
-        { key: "status", title: "Status", maxWidth: 11, minWidth: 11, hardMinWidth: 11 },
-        { key: "pipeId", title: "PipeId", maxWidth: 34, minWidth: 12, hardMinWidth: 10 },
-        { key: "versionCode", title: "VersionCode", maxWidth: 12, minWidth: 10 },
-        { key: "versionName", title: "VersionName", maxWidth: 18, minWidth: 12 },
-        { key: "startTaskName", title: "StartTask", maxWidth: 16, minWidth: 10 },
+        {
+          key: "status",
+          title: "Status",
+          maxWidth: 11,
+          minWidth: 11,
+          hardMinWidth: 11,
+        },
+        {
+          key: "pipeId",
+          title: "PipeId",
+          maxWidth: 34,
+          minWidth: 12,
+          hardMinWidth: 10,
+        },
+        {
+          key: "versionCode",
+          title: "VersionCode",
+          maxWidth: 12,
+          minWidth: 10,
+        },
+        {
+          key: "versionName",
+          title: "VersionName",
+          maxWidth: 18,
+          minWidth: 12,
+        },
+        {
+          key: "startTaskName",
+          title: "StartTask",
+          maxWidth: 16,
+          minWidth: 10,
+        },
         { key: "env", title: "Env", maxWidth: 12, minWidth: 7 },
         { key: "branch", title: "Branch", maxWidth: 12, minWidth: 8 },
         { key: "platform", title: "Platform", maxWidth: 10, minWidth: 8 },
@@ -215,7 +289,9 @@ async function initHugoAivPipelines() {
     await dbInfo.db.close();
   }
 
-  console.log(`已初始化 ${createdOrUpdated} 条 pipeline 记录。重复的不会新增。`);
+  console.log(
+    `已初始化 ${createdOrUpdated} 条 pipeline 记录。重复的不会新增。`,
+  );
 }
 
 async function resumeBuild(buildId: string) {
@@ -253,7 +329,9 @@ async function resumeBuild(buildId: string) {
     }
 
     if (summary.projectName !== "hugo-aiv-app") {
-      console.log(`当前只支持恢复 hugo-aiv-app，这条记录属于 ${summary.projectName}。`);
+      console.log(
+        `当前只支持恢复 hugo-aiv-app，这条记录属于 ${summary.projectName}。`,
+      );
       return;
     }
 
@@ -265,17 +343,7 @@ async function resumeBuild(buildId: string) {
     const pipelines = createHugoAivPipelines({
       config,
       pipelines: [summary.pipeId],
-      args: {
-        autoVersionCode:
-          typeof buildOptions.autoVersionCode === "boolean"
-            ? buildOptions.autoVersionCode
-            : undefined,
-        legacyVersioning:
-          typeof buildOptions.legacyVersioning === "boolean"
-            ? buildOptions.legacyVersioning
-            : undefined,
-        dryRun: false,
-      },
+      args: createPipelineArgsFromBuildOptions(buildOptions),
       workspace: summary.workspace ?? undefined,
       clean: false,
     });
@@ -337,7 +405,7 @@ async function showBuildTaskInfo(buildId: string, taskName?: string) {
       history.find((item) => item.status === "interrupted");
     const taskRow = taskName
       ? history.find((item) => item.task_name === taskName)
-      : failedTaskRow ?? history[history.length - 1];
+      : (failedTaskRow ?? history[history.length - 1]);
 
     if (taskName && !taskRow) {
       renderKeyValueCard("构建详情", [
@@ -387,13 +455,20 @@ async function showBuildTaskInfo(buildId: string, taskName?: string) {
     }
 
     renderTextCard(
-      taskName ? `任务上下文 · ${taskRow?.task_name ?? taskName}` : "Build Context",
+      taskName
+        ? `任务上下文 · ${taskRow?.task_name ?? taskName}`
+        : "Build Context",
       formatTaskDetails([
         ["task", formatPlainBlock(taskRow?.task_name)],
         ["taskInput", formatJsonBlock(taskRow?.task_input)],
         ["logFile", formatPlainBlock(taskRow?.log_file)],
         ...(taskName
-          ? [["taskOutput", formatJsonBlock(taskRow?.task_output)] as [string, string]]
+          ? [
+              ["taskOutput", formatJsonBlock(taskRow?.task_output)] as [
+                string,
+                string,
+              ],
+            ]
           : []),
       ]),
     );
@@ -404,8 +479,7 @@ async function showBuildTaskInfo(buildId: string, taskName?: string) {
 
 async function retryBuildFromTask(buildId: string, taskName?: string) {
   if (!taskName) {
-    console.log("请同时传入 --task <taskName>。");
-    return;
+    exitWithCliError("缺少必要参数: --task");
   }
 
   const db = await createConnect();
@@ -490,17 +564,7 @@ async function retryBuildFromTask(buildId: string, taskName?: string) {
   const pipelines = createHugoAivPipelines({
     config,
     pipelines: [pipeId],
-    args: {
-      autoVersionCode:
-        typeof buildOptions.autoVersionCode === "boolean"
-          ? buildOptions.autoVersionCode
-          : undefined,
-      legacyVersioning:
-        typeof buildOptions.legacyVersioning === "boolean"
-          ? buildOptions.legacyVersioning
-          : undefined,
-      dryRun: false,
-    },
+    args: createPipelineArgsFromBuildOptions(buildOptions),
     workspace,
     clean: false,
   });
@@ -685,78 +749,249 @@ function restoreContextFromHistory(
 }
 
 function normalizeCliArgs(args: string[]) {
-  return args.map((arg) => {
-    if (arg === "-init") {
-      return "--init";
-    }
-    if (arg === "-resume") {
-      return "--resume";
-    }
-    if (arg === "-retry") {
-      return "--retry";
-    }
-    return arg;
-  });
+  const normalized = [...args];
+
+  if (normalized[0] === "-l") {
+    normalized[0] = "history";
+  } else if (normalized[0] === "-p") {
+    normalized[0] = "pipeline";
+  } else if (normalized[0] === "-i") {
+    normalized[0] = "info";
+  } else if (normalized[0] === "-init") {
+    normalized[0] = "init";
+  } else if (normalized[0] === "-resume") {
+    normalized[0] = "resume";
+  } else if (normalized[0] === "-retry") {
+    normalized[0] = "retry";
+  }
+
+  return normalized;
 }
 
 function createCli() {
   return yargs(normalizeCliArgs(hideBin(process.argv)))
-    .scriptName("bun run src/cli/mod.ts")
-    .usage("用法:\n  $0 -l [--limit 10]\n  $0 --clear\n  $0 -p\n  $0 -i <buildId> --task <taskName>\n  $0 --retry <buildId> --task <taskName>\n  $0 --upload <buildId>\n  $0 -init\n  $0 --resume <buildId>")
+    .parserConfiguration({
+      "dot-notation": false,
+    })
+    .scriptName("bun cli")
+    .usage("用法: $0 <command> [options]")
     .updateStrings({
+      "Commands:": "命令:",
       "Options:": "选项:",
       "Show version number": "显示版本号",
       "Show help": "显示帮助",
       "Missing required argument: %s": "缺少必要参数: %s",
+      "Missing required arguments: %s": "缺少必要参数: %s",
     })
-    .option("history", {
-      type: "boolean",
-      description: "查看最近的构建历史",
+    .command("init", "初始化数据库文件、表和 hugo-aiv 的 pipeline")
+    .command("resume <buildId>", "按 buildId 恢复失败构建", (command) =>
+      command.positional("buildId", {
+        type: "string",
+        describe: "构建 ID，可传完整值或前缀",
+      }),
+    )
+    .command(
+      "retry <buildId>",
+      "从某次构建里指定任务开始重新执行后续步骤",
+      (command) =>
+        command
+          .positional("buildId", {
+            type: "string",
+            describe: "构建 ID，可传完整值或前缀",
+          })
+          .option("task", {
+            type: "string",
+            description: "指定要重试的任务名",
+          }),
+    )
+    .command(
+      "build",
+      "按 app/env/branch/platform 构建一个或多个 pipeline",
+      (command) =>
+        command
+          .option("app", {
+            type: "string",
+            choices: [...SUPPORTED_BUILD_APPS],
+            description: "要构建的应用；当前支持 hookAi",
+          })
+          .option("env", {
+            type: "string",
+            choices: [...SUPPORTED_BUILD_ENVS],
+            description: "环境配置；可选 alpha、production",
+          })
+          .option("branch", {
+            type: "string",
+            choices: [...SUPPORTED_BUILD_BRANCHES],
+            description: "代码分支；可选 alpha、main",
+          })
+          .option("platform", {
+            type: "string",
+            coerce: parseBuildPlatforms,
+            description:
+              "构建平台；支持 android、ios。多个值用逗号分隔，例如 ios,android",
+          })
+          .option("autoVersionCode", {
+            type: "boolean",
+            description:
+              "全局参数；是否自动递增 versionCode。不传时沿用当前项目原有逻辑",
+          })
+          .option("legacyVersioning", {
+            type: "boolean",
+            description:
+              "全局参数；是否启用兼容旧逻辑的版本号策略。不传时沿用当前项目原有逻辑",
+          })
+          .option("android:buildAndroid.clear", {
+            type: "boolean",
+            description:
+              "Android 专属；传给 buildAndroid 任务。true 先清理再构建，false 跳过清理直接构建",
+          }),
+    )
+    .command(
+      "info <buildId>",
+      "查看某次构建详情；可选配合 --task 查看指定任务上下文",
+      (command) =>
+        command
+          .positional("buildId", {
+            type: "string",
+            describe: "构建 ID，可传完整值或前缀",
+          })
+          .option("task", {
+            type: "string",
+            description: "查看指定任务的上下文",
+          }),
+    )
+    .command("history", "查看最近的构建历史，或清空历史", (command) =>
+      command
+        .option("limit", {
+          type: "number",
+          description: "限制显示条数，默认 10",
+          default: 10,
+        })
+        .option("clear", {
+          type: "boolean",
+          description:
+            "清空所有 build history，仅清理数据库，不删除 log 和 output",
+        }),
+    )
+    .command("pipeline", "查看所有 pipeline", (command) => command)
+    .command(
+      "asc upload <buildId>",
+      "上传某次 iOS 构建产出的 IPA 到 App Store Connect",
+      (command) =>
+        command.positional("buildId", {
+          type: "string",
+          describe: "构建 ID，可传完整值或前缀",
+        }),
+    )
+    .demandCommand(1, "请先指定命令，例如 build、history、info。")
+    .strict()
+    .recommendCommands()
+    .fail((message, error, instance) => {
+      if (message) {
+        if (
+          message.includes("Not enough non-option arguments") ||
+          message.includes("Missing required arguments")
+        ) {
+          log.error(`缺少必要参数: ${message}`);
+        } else {
+          log.error(message);
+        }
+      }
+      if (error && !message) {
+        log.error(error.message);
+      }
+      instance.showHelp();
+      process.exit(1);
     })
-    .alias("history", "l")
-    .option("limit", {
-      type: "number",
-      description: "配合 -l 使用，限制显示条数，默认 10",
-      default: 10,
-    })
-    .option("clear", {
-      type: "boolean",
-      description: "清空所有 build history，仅清理数据库，不删除 log 和 output",
-    })
-    .option("pipeline", {
-      type: "boolean",
-      description: "查看所有 pipeline",
-    })
-    .alias("pipeline", "p")
-    .option("info", {
-      type: "string",
-      description: "查看某次构建详情；可选配合 --task 查看指定任务上下文",
-    })
-    .alias("info", "i")
-    .option("task", {
-      type: "string",
-      description: "配合 --info 或 --retry 使用，指定任务名",
-    })
-    .option("retry", {
-      type: "string",
-      description: "从某次构建里指定任务开始重新执行后续步骤",
-    })
-    .option("upload", {
-      type: "string",
-      description: "将某次 iOS 构建产出的 IPA 上传到 App Store Connect",
-    })
-    .option("init", {
-      type: "boolean",
-      description: "初始化数据库文件、表和 hugo-aiv 的 pipeline",
-    })
-    .option("resume", {
-      type: "string",
-      description: "按 buildId 恢复失败构建",
-    })
-    .implies("retry", "task")
+    .epilog(
+      [
+        "示例:",
+        "  $0 init",
+        "  $0 resume petdwVMJkImB",
+        "  $0 retry petdwVMJkImB --task uploadQiniu",
+        "  $0 build --app hookAi --env production --branch main --platform ios,android",
+        "  $0 build --app hookAi --env production --branch main --platform android",
+        "  $0 info petdwVMJkImB --task uploadQiniu",
+        "  $0 history --limit 10",
+        "  $0 history --clear",
+        "  $0 pipeline",
+        "  $0 asc upload petdwVMJkImB",
+        "",
+        "通用规则:",
+        "  build 必填: --app --env --branch --platform",
+        "  --platform 支持多个值，逗号分隔，例如 ios,android",
+        "  平台专属参数格式: --平台:任务名.参数名 值",
+        "  平台专属参数只作用于对应平台，其他平台会忽略",
+        "  缺少必填参数时会直接报错，不走选择框",
+        "",
+        "build 参数说明:",
+        "  --app hookAi                        应用，当前只支持 hookAi",
+        "  --env alpha|production              环境",
+        "  --branch alpha|main                 分支",
+        "  --platform ios,android              平台；支持单个或多个值",
+        "  --autoVersionCode                   全局版本参数；控制 versionCode 递增",
+        "  --legacyVersioning                  全局版本参数；启用旧版本号兼容逻辑",
+        "  --android:buildAndroid.clear false  Android 专属；跳过 gradlew clean 直接构建",
+      ].join("\n"),
+    )
     .alias("h", "help")
     .help("help")
     .wrap(Math.min(100, process.stdout.columns || 100));
+}
+
+async function buildHugoAivFromCommand(argv: CliArgs) {
+  const app = requireCliString(argv.app, "--app");
+  const env = requireCliString(argv.env, "--env");
+  const branch = requireCliString(argv.branch, "--branch");
+  const rawPlatform = argv.platform;
+  if (rawPlatform === undefined) {
+    exitWithCliError("缺少必要参数: --platform");
+  }
+  const platformsInput = Array.isArray(rawPlatform)
+    ? rawPlatform.join(",")
+    : rawPlatform;
+  const platforms: SupportedBuildPlatform[] =
+    parseBuildPlatforms(platformsInput);
+  const taskOptions = extractTaskOptionsFromArgv(
+    argv as unknown as Record<string, unknown>,
+  );
+  const pipelines = createBuildPipelineIds({
+    app: app as (typeof SUPPORTED_BUILD_APPS)[number],
+    env: env as (typeof SUPPORTED_BUILD_ENVS)[number],
+    branch: branch as (typeof SUPPORTED_BUILD_BRANCHES)[number],
+    platforms,
+  });
+  const config = await loadHugoAivConfig();
+  const pipelineArgs: HugoAivPipelineArgs = {
+    autoVersionCode: argv.autoVersionCode,
+    legacyVersioning: argv.legacyVersioning,
+    dryRun: false,
+    ...(taskOptions ? { taskOptions } : {}),
+  };
+
+  renderKeyValueCard("Build", [
+    ["App", app],
+    ["Env", env],
+    ["Branch", branch],
+    ["Platform", platforms.join(",")],
+    ["Pipelines", pipelines.join("\n")],
+    ["autoVersionCode", String(argv.autoVersionCode ?? "-")],
+    ["legacyVersioning", String(argv.legacyVersioning ?? "-")],
+    [
+      "android:buildAndroid.clear",
+      typeof argv["android:buildAndroid.clear"] === "boolean"
+        ? String(argv["android:buildAndroid.clear"])
+        : "-",
+    ],
+  ]);
+
+  await pipelineRun(
+    createHugoAivPipelines({
+      config,
+      pipelines,
+      args: pipelineArgs,
+    }),
+  );
 }
 
 function renderTable({
@@ -775,13 +1010,19 @@ function renderTable({
 }) {
   const measuredWidths = columns.map((column, index) => {
     const formattedValues = rows.map((row) =>
-      stripAnsi(column.render ? column.render(row, column.maxWidth ?? 1000) : formatCell(row[column.key])),
+      stripAnsi(
+        column.render
+          ? column.render(row, column.maxWidth ?? 1000)
+          : formatCell(row[column.key]),
+      ),
     );
     const contentWidth = Math.max(
       stringWidth(column.title),
       ...formattedValues.map((value) => stringWidth(value)),
     );
-    return column.maxWidth ? Math.min(contentWidth, column.maxWidth) : contentWidth;
+    return column.maxWidth
+      ? Math.min(contentWidth, column.maxWidth)
+      : contentWidth;
   });
   const widths = fitTableWidths(columns, measuredWidths);
   const normalizedRows = rows.map((row) =>
@@ -797,7 +1038,12 @@ function renderTable({
   const footer = `└${widths.map((width) => "─".repeat(width + 2)).join("┴")}┘`;
 
   console.log(border);
-  console.log(renderRow(columns.map((column) => column.title), widths));
+  console.log(
+    renderRow(
+      columns.map((column) => column.title),
+      widths,
+    ),
+  );
   console.log(divider);
   normalizedRows.forEach((row) => {
     console.log(renderRow(row, widths));
@@ -807,15 +1053,22 @@ function renderTable({
 
 function renderKeyValueCard(title: string, rows: Array<[string, string]>) {
   const terminalWidth = Math.max(80, process.stdout.columns || 120);
-  const labelWidth = Math.max(...rows.map(([label]) => stringWidth(label)), stringWidth(title));
+  const labelWidth = Math.max(
+    ...rows.map(([label]) => stringWidth(label)),
+    stringWidth(title),
+  );
   const maxValueWidth = Math.max(terminalWidth - labelWidth - 7, 20);
-  const wrappedRows = rows.map(([label, value]) => [
-    label,
-    toWrappedLines(value, maxValueWidth),
-  ] as const);
+  const wrappedRows = rows.map(
+    ([label, value]) => [label, toWrappedLines(value, maxValueWidth)] as const,
+  );
   const valueWidth = Math.min(
     maxValueWidth,
-    Math.max(...wrappedRows.flatMap(([, lines]) => lines.map((line) => stringWidth(line))), 0),
+    Math.max(
+      ...wrappedRows.flatMap(([, lines]) =>
+        lines.map((line) => stringWidth(line)),
+      ),
+      0,
+    ),
   );
   const totalWidth = labelWidth + valueWidth + 7;
 
@@ -913,7 +1166,9 @@ function shrinkWidths(
 }
 
 function getTableWidth(widths: number[]) {
-  return widths.reduce((total, width) => total + width, 0) + widths.length * 3 + 1;
+  return (
+    widths.reduce((total, width) => total + width, 0) + widths.length * 3 + 1
+  );
 }
 
 function truncateText(text: string, maxWidth: number) {
@@ -1062,7 +1317,6 @@ function splitTextByWidth(text: string, maxWidth: number): [string, string] {
   return [text.slice(0, index), text.slice(index)];
 }
 
-
 async function resolveBuildSummary(
   db: Awaited<ReturnType<typeof createConnect>>,
   buildIdOrPrefix: string,
@@ -1111,7 +1365,20 @@ function toResumeId(value: unknown) {
   return text || "-";
 }
 
+function requireCliString(value: unknown, optionName: string) {
+  if (typeof value === "string" && value.trim() !== "") {
+    return value;
+  }
+
+  exitWithCliError(`缺少必要参数: ${optionName}`);
+}
+
+function exitWithCliError(message: string): never {
+  log.error(message);
+  process.exit(1);
+}
+
 main().catch((error) => {
-  console.error(error);
+  console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);
 });
