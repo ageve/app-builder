@@ -24,14 +24,14 @@ function summarizeUploadApiResponse(data: unknown) {
 
 export default async function uploadQiniu(
   context: any,
-  options?: { key: string }
+  options?: { key: string },
 ) {
   try {
     const { buildAndroid, prepareEnv, logger, env } = context;
     const { productFiles } = buildAndroid;
     const { versionName } = prepareEnv;
     const target = (productFiles as string[]).find((it) =>
-      it.includes("universal")
+      it.includes("universal"),
     );
     if (!target) return false;
     // get uploadToken
@@ -39,16 +39,22 @@ export default async function uploadQiniu(
       env === "alpha"
         ? builderConfig.uploadApi?.alpha
         : builderConfig.uploadApi?.prod;
+    const token =
+      env === "alpha"
+        ? builderConfig.uploadToken?.alpha
+        : builderConfig.uploadToken?.prod;
     if (!url) throw new Error("configGlobal missing uploadApi");
+    console.log("[uploadQiniu]", url, token);
     const response = await fetch(url, {
       method: "POST",
       headers: {
         "content-type": "application/json",
+        authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
         storage: "Qiniu",
         size: 0,
-        name: path.basename(target),
+        key: `res/apk/${versionName}/钩子AI-10秒做引流视频.apk`,
         fileType: "apk",
         width: 0,
         height: 0,
@@ -64,6 +70,8 @@ export default async function uploadQiniu(
         )}`,
       );
     }
+
+    console.log(JSON.stringify(data, null, 2));
 
     const formUploader = new qiniu.form_up.FormUploader(config);
     const putExtra = new qiniu.form_up.PutExtra();
@@ -84,35 +92,43 @@ export default async function uploadQiniu(
       );
     }
 
-    const uploadRes = await new Promise((resolve, reject) => {
-      formUploader.putFile(
-        uploadToken,
-        key,
-        target,
-        putExtra,
-        function (respErr, respBody, respInfo) {
-          if (respErr) {
-            reject(respErr);
-          }
+    // const uploadRes = await new Promise((resolve, reject) => {
+    //   formUploader.putFile(
+    //     uploadToken,
+    //     key,
+    //     target,
+    //     putExtra,
+    //     function (respErr, respBody, respInfo) {
+    //       if (respErr) {
+    //         reject(respErr);
+    //       }
 
-          if (respInfo.statusCode == 200) {
-            console.log("upload success \n");
-            logger.info(data.url);
-            resolve(true);
-          } else {
-            console.warn("something wrong \n");
-            console.log(respInfo.statusCode);
-            console.log(respBody);
-            resolve(false);
-          }
-        }
-      );
-    });
+    //       if (respInfo.statusCode == 200) {
+    //         console.log("upload success \n");
+    //         logger.info(data.url);
+    //         resolve(true);
+    //       } else {
+    //         console.warn("something wrong \n");
+    //         console.log(respInfo.statusCode);
+    //         console.log(respBody, key, putExtra, target);
+    //         resolve(false);
+    //       }
+    //     },
+    //   );
+    // });
+    console.log({ uploadToken, key, target, putExtra });
+    const uploadRes = await formUploader.putFile(
+      uploadToken,
+      key,
+      target,
+      putExtra,
+    );
     log.success("[downloadUrl] " + data.url);
     if (uploadRes) {
       return { downloadUrl: data.url };
     }
   } catch (error) {
+    console.log(error);
     throw error instanceof Error ? error : new Error(String(error));
   }
   return false;

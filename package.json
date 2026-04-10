@@ -34,7 +34,7 @@
     "open": "^10.0.3",
     "picocolors": "^1.1.1",
     "properties-reader": "^2.2.0",
-    "qiniu": "^7.10.1",
+    "qiniu": "^7.15.1",
     "rimraf": "^5.0.5",
     "typescript": "^5.2.2",
     "uuid": "^9.0.0",

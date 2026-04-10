@@ -28,6 +28,13 @@ export const configSchema = z.object({
     })
     .optional(),
 
+  uploadToken: z
+    .object({
+      alpha: z.string(),
+      prod: z.string(),
+    })
+    .optional(),
+
   updateUrl: z
     .object({
       alpha: z.string(),
