@@ -4,7 +4,7 @@ import path from "path";
 import qiniu from "qiniu";
 import builderConfig from "../config.global";
 import { setTaskName } from "../utils/common";
-const config = new qiniu.conf.Config();
+const config = new qiniu.conf.Config({ useHttpsDomain: true });
 
 function summarizeUploadApiResponse(data: unknown) {
   if (!data || typeof data !== "object") {
@@ -124,6 +124,7 @@ export default async function uploadQiniu(
       putExtra,
     );
     log.success("[downloadUrl] " + data.url);
+    console.log(JSON.stringify(data, null, 2));
     if (uploadRes) {
       return { downloadUrl: data.url };
     }
