@@ -5,7 +5,6 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "build": "bun run src/cli/main.ts",
     "cli": "bun run src/cli/mod.ts"
   },
   "dependencies": {

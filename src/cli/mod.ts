@@ -13,6 +13,7 @@ import {
   type HugoAivPipelineArgs,
   getHugoAivPipelineOptions,
 } from "./hugo-aiv/buildHugoAivApp";
+import { runMainCli } from "./main";
 import {
   createBuildPipelineIds,
   createPipelineArgsFromBuildOptions,
@@ -57,6 +58,12 @@ type CliArgs = {
 };
 
 async function main() {
+  const rawArgs = hideBin(process.argv);
+  if (rawArgs.length === 0) {
+    await runMainCli();
+    return;
+  }
+
   const cli = createCli();
   const argv = (await cli.parse()) as CliArgs;
   const command = typeof argv._[0] === "string" ? argv._[0] : "";

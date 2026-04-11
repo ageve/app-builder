@@ -3,7 +3,7 @@ import { cancel, intro, isCancel, outro, select } from "@clack/prompts";
 import color from "picocolors";
 import { buildHugoAivApp } from "./hugo-aiv/buildHugoAivApp";
 
-async function main() {
+export async function runMainCli() {
   intro(color.inverse(" App Builder "));
 
   const projectName = await select({
@@ -23,4 +23,6 @@ async function main() {
   outro("Finish!");
 }
 
-main().catch(console.error);
+if (require.main === module) {
+  runMainCli().catch(console.error);
+}
