@@ -3,8 +3,12 @@ import { randomUUID } from "node:crypto";
 import { rmSync } from "node:fs";
 import { join } from "node:path";
 import {
+  clearBuildHistoryByBuildIds,
   getBuildSummaryByBuildId,
   initBuildHistoryDb,
+  listBuildIdsBefore,
+  listBuildHistoryLogFiles,
+  listBuildHistoryLogFilesByBuildIds,
   upsertBuildHistory,
 } from "./sqliteUtil";
 
@@ -91,6 +95,103 @@ describe("getBuildSummaryByBuildId()", () => {
       expect(summary?.versionCode).toBe("101003");
       expect(summary?.versionName).toBe("1.1.3");
       expect(summary?.startTaskName).toBe("uploadQiniu");
+    } finally {
+      await dbInfo.db.close();
+    }
+  });
+
+  it("返回构建耗时并提取 history 里的日志路径", async () => {
+    const dbInfo = await createTestDb();
+
+    try {
+      await upsertBuildHistory(dbInfo.db, {
+        pipelineId: dbInfo.pipelineId,
+        buildId: "build-log",
+        taskName: "prepareEnv",
+        taskIndex: 0,
+        status: "success",
+        logFile: "/tmp/build-log.log",
+        startedAt: "2026-04-10T00:00:00.000Z",
+        finishedAt: "2026-04-10T00:00:01.000Z",
+      });
+
+      await upsertBuildHistory(dbInfo.db, {
+        pipelineId: dbInfo.pipelineId,
+        buildId: "build-log",
+        taskName: "renameLog",
+        taskIndex: 1,
+        status: "success",
+        logFile: "/tmp/build-log.log",
+        taskOutput: JSON.stringify({
+          archivedLogFile: "/tmp/archived/build-log.04010000.log",
+        }),
+        contextOutputKey: "renameLog",
+        startedAt: "2026-04-10T00:00:01.000Z",
+        finishedAt: "2026-04-10T00:01:31.000Z",
+      });
+
+      const summary = await getBuildSummaryByBuildId(dbInfo.db, "build-log");
+      const logFiles = await listBuildHistoryLogFiles(dbInfo.db);
+
+      expect(summary?.durationMs).toBe(91000);
+      expect(logFiles).toContain("/tmp/build-log.log");
+      expect(logFiles).toContain("/tmp/archived/build-log.04010000.log");
+    } finally {
+      await dbInfo.db.close();
+    }
+  });
+
+  it("按日期筛选 build 并按 buildId 清理历史", async () => {
+    const dbInfo = await createTestDb();
+    const cutoff = "2026-04-11T00:00:00.000Z";
+
+    try {
+      await upsertBuildHistory(dbInfo.db, {
+        pipelineId: dbInfo.pipelineId,
+        buildId: "build-old",
+        taskName: "renameLog",
+        taskIndex: 0,
+        status: "success",
+        logFile: "/tmp/build-old.log",
+        taskOutput: JSON.stringify({
+          archivedLogFile: "/tmp/logs/build-old.04100000.log",
+        }),
+        startedAt: "2026-04-10T12:00:00.000Z",
+        finishedAt: "2026-04-10T12:00:05.000Z",
+      });
+
+      await upsertBuildHistory(dbInfo.db, {
+        pipelineId: dbInfo.pipelineId,
+        buildId: "build-today",
+        taskName: "renameLog",
+        taskIndex: 0,
+        status: "success",
+        logFile: "/tmp/build-today.log",
+        taskOutput: JSON.stringify({
+          archivedLogFile: "/tmp/logs/build-today.04110000.log",
+        }),
+        startedAt: "2026-04-11T08:00:00.000Z",
+        finishedAt: "2026-04-11T08:00:05.000Z",
+      });
+
+      const oldBuildIds = await listBuildIdsBefore(dbInfo.db, cutoff);
+      expect(oldBuildIds).toContain("build-old");
+      expect(oldBuildIds).not.toContain("build-today");
+
+      const oldLogFiles = await listBuildHistoryLogFilesByBuildIds(
+        dbInfo.db,
+        oldBuildIds,
+      );
+      expect(oldLogFiles).toContain("/tmp/build-old.log");
+      expect(oldLogFiles).toContain("/tmp/logs/build-old.04100000.log");
+      expect(oldLogFiles).not.toContain("/tmp/build-today.log");
+
+      await clearBuildHistoryByBuildIds(dbInfo.db, oldBuildIds);
+
+      const oldSummary = await getBuildSummaryByBuildId(dbInfo.db, "build-old");
+      const todaySummary = await getBuildSummaryByBuildId(dbInfo.db, "build-today");
+      expect(oldSummary).toBeNull();
+      expect(todaySummary?.buildId).toBe("build-today");
     } finally {
       await dbInfo.db.close();
     }

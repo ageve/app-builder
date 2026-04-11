@@ -66,7 +66,9 @@ bun cli -h
 ```bash
 bun cli init
 bun cli history --limit 10
+bun cli clear --log
 bun cli info petdwVMJkImB
+bun cli log petdwVMJkImB
 bun cli resume petdwVMJkImB
 bun cli retry petdwVMJkImB --task uploadQiniu
 ```
@@ -89,12 +91,21 @@ Android 跳过清理直接构建：
 bun cli build --app hookAi --env production --branch main --platform android --android:buildAndroid.clear false
 ```
 
+清理历史并同时清理对应日志：
+
+```bash
+bun cli clear --log
+bun cli clear --all --log
+```
+
 `build` 当前规则：
 
 - 必填参数：`--app`、`--env`、`--branch`、`--platform`
 - `--platform` 支持多个值，逗号分隔，例如 `ios,android`
 - 平台专属参数格式：`--平台:任务名.参数名 值`
 - 当前已支持：`--android:buildAndroid.clear false`
+- 清理历史：`bun cli clear --log`（默认清理今天以前，并删对应日志）
+- 全量清理：`bun cli clear --all --log`
 - 缺少必填参数时会直接报错，不会弹选择框
 
 ## 版本管理策略

@@ -4,6 +4,7 @@ export { configSchema, type Config } from "./zodSchemas";
 export {
   acquireBuildRunLock,
   clearBuildHistory,
+  clearBuildHistoryByBuildIds,
   createBuildHistoryTable,
   createConnect,
   createReadonlyConnect,
@@ -11,6 +12,9 @@ export {
   findBuildSummariesByBuildIdPrefix,
   listBuildSummaries,
   getBuildHistoryByBuildId,
+  listBuildIdsBefore,
+  listBuildHistoryLogFiles,
+  listBuildHistoryLogFilesByBuildIds,
   getBuildSummaryByBuildId,
   getPipelineKey,
   initBuildHistoryDb,

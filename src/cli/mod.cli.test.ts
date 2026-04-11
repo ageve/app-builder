@@ -28,7 +28,10 @@ describe("mod.ts help", () => {
     expect(result.stdout).toContain("retry <buildId>");
     expect(result.stdout).toContain("build");
     expect(result.stdout).toContain("asc upload <buildId>");
+    expect(result.stdout).toContain("log <buildId>");
     expect(result.stdout).toContain("--android:buildAndroid.clear false");
+    expect(result.stdout).toContain("clear --all --log");
+    expect(result.stdout).toContain("查看今天的构建历史");
     expect(result.stdout).toContain("平台专属参数格式");
   });
 
@@ -40,6 +43,15 @@ describe("mod.ts help", () => {
     expect(result.stdout).toContain("ios,android");
     expect(result.stdout).toContain("--android:buildAndroid.clear");
     expect(result.stdout).toContain("不传时沿用当前项目原有逻辑");
+  });
+
+  it("clear 帮助里展示 all 和 log 参数", async () => {
+    const result = await runCli(["clear", "--help"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("--all");
+    expect(result.stdout).toContain("--log");
+    expect(result.stdout).toContain("默认只清理今天以前");
   });
 
   it("缺少 build 必填参数时直接报错", async () => {

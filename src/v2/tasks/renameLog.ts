@@ -5,32 +5,32 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { setTaskName } from "../utils/common";
-async function renameLog(context: any, external = "") {
+async function renameLog(context: any, _external = "") {
   // 检查文件夹是否存在，否创建
   try {
-    const { logFile, projectName, prepareEnv, variables, env, cwd } = context;
-    const { commitId } = variables;
-    const { packageAlias } = prepareEnv;
-
-    const logoInfo = [packageAlias, env, external, commitId]
-      .filter((it) => it)
-      .join("_");
+    const { logFile, projectName, cwd, buildId } = context;
+    const logoInfo = [buildId].filter((it) => it).join("_");
 
     log.info(`${logFile} ${logoInfo}`);
 
     ensureDirSync(resolve(cwd, `./logs/${projectName}`));
 
-    if (existsSync(logFile)) {
-      copyFileSync(
-        logFile,
-        resolve(
-          cwd,
-          `./logs/${projectName}/${logoInfo}.${dayjs().format("MMDDHHmm")}.log`
-        )
-      );
+    if (!existsSync(logFile)) {
+      return true;
     }
 
-    return true;
+    const archivedLogFile = resolve(
+      cwd,
+      `./logs/${projectName}/${logoInfo}.${dayjs().format("MMDDHHmm")}.log`
+    );
+    copyFileSync(logFile, archivedLogFile);
+    context.logFile = archivedLogFile;
+    context.archivedLogFile = archivedLogFile;
+
+    return {
+      archivedLogFile,
+      sourceLogFile: logFile,
+    };
   } catch (error) {
     console.log("rename log error", error);
   }

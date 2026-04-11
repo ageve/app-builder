@@ -53,6 +53,7 @@ export type BuildSummary = {
   buildOptions: Record<string, unknown> | null;
   startedAt: string;
   finishedAt?: string | null;
+  durationMs?: number | null;
   status: "failed" | "success" | "running" | "interrupted";
   versionCode?: string | null;
   versionName?: string | null;
@@ -506,6 +507,12 @@ export async function getBuildSummaryByBuildId(
   const interruptedTask = history.find((item) => item.status === "interrupted");
   const last = history[history.length - 1];
   const versionInfo = extractVersionInfoFromHistory(history);
+  const startedAt = typeof first.started_at === "string" ? first.started_at : null;
+  const finishedAt = typeof last.finished_at === "string" ? last.finished_at : null;
+  const durationMs =
+    startedAt && finishedAt && dayjs(startedAt).isValid() && dayjs(finishedAt).isValid()
+      ? dayjs(finishedAt).valueOf() - dayjs(startedAt).valueOf()
+      : null;
 
   return {
     buildId,
@@ -518,7 +525,8 @@ export async function getBuildSummaryByBuildId(
     workspace: first.workspace,
     buildOptions: first.build_options ? JSON.parse(first.build_options) : null,
     startedAt: first.started_at,
-    finishedAt: last.finished_at ?? null,
+    finishedAt,
+    durationMs,
     status: failedTask
       ? "failed"
       : interruptedTask
@@ -540,6 +548,104 @@ export async function getBuildSummaryByBuildId(
           : null,
     taskCount: history.length,
   };
+}
+
+export async function listBuildHistoryLogFiles(db: Database): Promise<string[]> {
+  const statement = db.prepare(`
+    SELECT DISTINCT build_id
+    FROM "${BUILD_HISTORY_TABLE_NAME}"
+  `);
+  const rows = (await statement.all()) as Array<{ build_id?: unknown }>;
+  const buildIds = rows
+    .map((item) => (typeof item.build_id === "string" ? item.build_id : null))
+    .filter((item): item is string => item !== null);
+  return listBuildHistoryLogFilesByBuildIds(db, buildIds);
+}
+
+export async function listBuildIdsBefore(
+  db: Database,
+  startedBefore: string,
+): Promise<string[]> {
+  const statement = db.prepare(`
+    SELECT DISTINCT build_id
+    FROM "${BUILD_HISTORY_TABLE_NAME}"
+    WHERE started_at < ?
+  `);
+  const rows = (await statement.all(startedBefore)) as Array<{ build_id?: unknown }>;
+  return rows
+    .map((item) => (typeof item.build_id === "string" ? item.build_id : null))
+    .filter((item): item is string => item !== null);
+}
+
+export async function listBuildHistoryLogFilesByBuildIds(
+  db: Database,
+  buildIds: string[],
+): Promise<string[]> {
+  if (buildIds.length === 0) {
+    return [];
+  }
+
+  const placeholders = buildIds.map(() => "?").join(", ");
+  const statement = db.prepare(`
+    SELECT
+      task_name,
+      log_file,
+      task_output
+    FROM "${BUILD_HISTORY_TABLE_NAME}"
+    WHERE build_id IN (${placeholders})
+  `);
+
+  const rows = (await statement.all(...buildIds)) as Array<{
+    task_name?: unknown;
+    log_file?: unknown;
+    task_output?: unknown;
+  }>;
+
+  const files = new Set<string>();
+
+  for (const row of rows) {
+    if (typeof row.log_file === "string" && row.log_file.trim() !== "") {
+      files.add(row.log_file);
+    }
+
+    if (row.task_name !== "renameLog" || typeof row.task_output !== "string") {
+      continue;
+    }
+
+    const parsed = parseDbJson(row.task_output) as Record<string, unknown> | null;
+    if (!parsed) {
+      continue;
+    }
+
+    const archivedLogFile =
+      typeof parsed.archivedLogFile === "string" ? parsed.archivedLogFile : null;
+    if (archivedLogFile) {
+      files.add(archivedLogFile);
+    }
+  }
+
+  return [...files];
+}
+
+export async function clearBuildHistoryByBuildIds(
+  db: Database,
+  buildIds: string[],
+) {
+  if (buildIds.length === 0) {
+    return;
+  }
+
+  const placeholders = buildIds.map(() => "?").join(", ");
+  await db
+    .prepare(
+      `DELETE FROM "${BUILD_HISTORY_TABLE_NAME}" WHERE build_id IN (${placeholders})`,
+    )
+    .run(...buildIds);
+  await db
+    .prepare(
+      `DELETE FROM "${BUILD_LOCK_TABLE_NAME}" WHERE build_id IN (${placeholders})`,
+    )
+    .run(...buildIds);
 }
 
 function extractVersionInfoFromHistory(history: Array<Record<string, any>>) {

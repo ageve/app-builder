@@ -1,9 +1,10 @@
 import { log } from "@clack/prompts";
 import dayjs from "dayjs";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, rmSync, statSync } from "node:fs";
 import { colorize } from "json-colorizer";
 import { resolve } from "node:path";
 import { cwd } from "node:process";
+import { spawn } from "node:child_process";
 import picocolors from "picocolors";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
@@ -28,6 +29,7 @@ import { BuildAlreadyRunningError } from "../v2/pipeline";
 import { pipelineRun } from "../v2/pipelineRun";
 import {
   clearBuildHistory,
+  clearBuildHistoryByBuildIds,
   configSchema,
   createConnect,
   createReadonlyConnect,
@@ -36,7 +38,10 @@ import {
   getBuildSummaryByBuildId,
   initBuildHistoryDb,
   importIfExistsAndValidate,
-  listBuildSummaries,
+  listBuildIdsBefore,
+  listBuildHistoryLogFiles,
+  listBuildHistoryLogFilesByBuildIds,
+  listBuildSummariesByDate,
   listPipelines,
   type Config,
 } from "../utils";
@@ -45,7 +50,8 @@ import type { BuildSummary } from "../utils/sqliteUtil";
 type CliArgs = {
   _: Array<string | number>;
   buildId?: string;
-  clear?: boolean;
+  all?: boolean;
+  log?: boolean;
   limit?: number;
   task?: string;
   app?: string;
@@ -69,11 +75,15 @@ async function main() {
   const command = typeof argv._[0] === "string" ? argv._[0] : "";
 
   if (command === "history") {
-    if (argv.clear) {
-      await clearAllBuildHistory();
-      return;
-    }
     await listBuilds(argv.limit);
+    return;
+  }
+
+  if (command === "clear") {
+    await clearBuildData({
+      clearAll: Boolean(argv.all),
+      clearLogs: Boolean(argv.log),
+    });
     return;
   }
 
@@ -84,6 +94,11 @@ async function main() {
 
   if (command === "info") {
     await showBuildTaskInfo(String(argv.buildId ?? ""), argv.task);
+    return;
+  }
+
+  if (command === "log") {
+    await showBuildLog(String(argv.buildId ?? ""));
     return;
   }
 
@@ -125,9 +140,9 @@ async function listBuilds(limit = 10) {
     const safeLimit = Number.isFinite(limit)
       ? Math.max(1, Math.floor(limit))
       : 10;
-    const candidateLimit = Math.max(safeLimit * 5, safeLimit + 20);
+    const today = dayjs().format("YYYY-MM-DD");
     const builds = hideSupersededBuilds(
-      await listBuildSummaries(db, candidateLimit),
+      await listBuildSummariesByDate(db, today),
     ).slice(0, safeLimit);
 
     if (builds.length === 0) {
@@ -155,8 +170,8 @@ async function listBuilds(limit = 10) {
         {
           key: "pipeId",
           title: "PipeId",
-          maxWidth: 34,
-          minWidth: 12,
+          maxWidth: 24,
+          minWidth: 10,
           hardMinWidth: 10,
         },
         {
@@ -183,11 +198,20 @@ async function listBuilds(limit = 10) {
         {
           key: "startedAt",
           title: "StartedAt",
-          maxWidth: 14,
+          maxWidth: 11,
           minWidth: 11,
           hardMinWidth: 11,
           render: (row, width) =>
             formatCell(formatStartedAt(row.startedAt), width),
+        },
+        {
+          key: "durationMs",
+          title: "Duration",
+          maxWidth: 8,
+          minWidth: 8,
+          hardMinWidth: 8,
+          render: (row, width) =>
+            formatCell(formatDuration(row.durationMs), width),
         },
         {
           key: "failedTaskName",
@@ -207,17 +231,81 @@ async function listBuilds(limit = 10) {
   }
 }
 
-async function clearAllBuildHistory() {
+async function clearBuildData(options: {
+  clearAll?: boolean;
+  clearLogs?: boolean;
+}) {
   const db = await createConnect();
   try {
-    await clearBuildHistory(db);
-    renderKeyValueCard("Clear Build History", [
-      ["Result", "已清空所有 build history"],
-      ["Note", "只清理数据库历史，不删除 log 和 output"],
+    const clearAll = Boolean(options.clearAll);
+    const clearLogs = Boolean(options.clearLogs);
+    const cutoff = dayjs().startOf("day").toISOString();
+    let targetBuildIds: string[] = [];
+    let removedLogs = 0;
+
+    if (clearAll) {
+      if (clearLogs) {
+        const files = await listBuildHistoryLogFiles(db);
+        removedLogs = clearManagedLogFiles(files);
+      }
+      await clearBuildHistory(db);
+      renderKeyValueCard("Clear", [
+        ["Scope", "全部历史"],
+        ["Result", "已清理全部构建历史"],
+        clearLogs
+          ? ["Log", `已清理 ${removedLogs} 个日志文件`]
+          : ["Log", "未清理日志（可加 --log）"],
+      ]);
+      return;
+    }
+
+    targetBuildIds = await listBuildIdsBefore(db, cutoff);
+
+    if (clearLogs) {
+      const files = await listBuildHistoryLogFilesByBuildIds(db, targetBuildIds);
+      removedLogs = clearManagedLogFiles(files);
+    }
+
+    await clearBuildHistoryByBuildIds(db, targetBuildIds);
+
+    renderKeyValueCard("Clear", [
+      ["Scope", "今天以前"],
+      ["Result", "已清理今天以前构建历史"],
+      ["BuildCount", String(targetBuildIds.length)],
+      clearLogs
+        ? ["Log", `已清理 ${removedLogs} 个日志文件`]
+        : ["Log", "未清理日志（可加 --log）"],
     ]);
   } finally {
     await db.close();
   }
+}
+
+function clearManagedLogFiles(files: string[]) {
+  const buildDir = resolve(cwd(), "./build");
+  const logsDir = resolve(cwd(), "./logs");
+  let removed = 0;
+
+  for (const filePath of files) {
+    if (
+      typeof filePath !== "string" ||
+      (!filePath.startsWith(buildDir) && !filePath.startsWith(logsDir))
+    ) {
+      continue;
+    }
+    if (!existsSync(filePath)) {
+      continue;
+    }
+
+    try {
+      rmSync(filePath, { force: true });
+      removed += 1;
+    } catch (_error) {
+      // 忽略单个文件删除失败，不影响整体清理
+    }
+  }
+
+  return removed;
 }
 
 function hideSupersededBuilds(builds: BuildSummary[]) {
@@ -482,6 +570,115 @@ async function showBuildTaskInfo(buildId: string, taskName?: string) {
   } finally {
     await db.close();
   }
+}
+
+async function showBuildLog(buildId: string) {
+  const db = await createReadonlyConnect();
+  try {
+    const summary = await resolveBuildSummary(db, buildId);
+    if (!summary) {
+      renderKeyValueCard("查看日志", [
+        ["BuildId", buildId],
+        ["Result", "未找到这条构建记录"],
+      ]);
+      return;
+    }
+
+    const history = await getBuildHistoryByBuildId(db, summary.buildId);
+    const logFile = resolveLogFileFromHistory(summary, history);
+    if (!logFile) {
+      renderKeyValueCard("查看日志", [
+        ["BuildId", toResumeId(summary.buildId)],
+        ["Result", "没有找到对应日志文件"],
+      ]);
+      return;
+    }
+
+    renderKeyValueCard("查看日志", [
+      ["BuildId", toResumeId(summary.buildId)],
+      ["LogFile", logFile],
+    ]);
+
+    await runTailspin(logFile);
+  } finally {
+    await db.close();
+  }
+}
+
+function resolveLogFileFromHistory(
+  summary: BuildSummary,
+  history: Array<Record<string, any>>,
+) {
+  const logsDir = resolve(cwd(), `./logs/${summary.projectName}`);
+
+  const renameTask = [...history]
+    .reverse()
+    .find((item) => item.task_name === "renameLog");
+  const renameOutput = parseJsonValue(renameTask?.task_output) as
+    | Record<string, unknown>
+    | null;
+  const renamePath =
+    typeof renameOutput?.archivedLogFile === "string"
+      ? renameOutput.archivedLogFile
+      : null;
+  if (renamePath && existsSync(renamePath)) {
+    return renamePath;
+  }
+
+  if (existsSync(logsDir)) {
+    const prefixA = `${summary.buildId}.`;
+    const prefixB = `${summary.buildId}_`;
+    const candidates = readdirSync(logsDir)
+      .filter((filename) => filename.endsWith(".log"))
+      .filter(
+        (filename) => filename.startsWith(prefixA) || filename.startsWith(prefixB),
+      )
+      .map((filename) => resolve(logsDir, filename))
+      .filter((filePath) => existsSync(filePath));
+
+    if (candidates.length > 0) {
+      candidates.sort(
+        (a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs,
+      );
+      return candidates[0];
+    }
+  }
+
+  const historyLogCandidates = [...history]
+    .reverse()
+    .map((item) => item.log_file)
+    .filter((value): value is string => typeof value === "string" && value !== "")
+    .filter((filePath) => filePath.includes("/logs/") && existsSync(filePath));
+
+  if (historyLogCandidates.length > 0) {
+    return historyLogCandidates[0];
+  }
+
+  return null;
+}
+
+function runTailspin(logFile: string) {
+  return new Promise<void>((resolvePromise, rejectPromise) => {
+    const child = spawn("tailspin", ["-p", logFile], {
+      stdio: "inherit",
+    });
+
+    child.on("error", (error) => {
+      rejectPromise(
+        new Error(
+          `无法启动 tailspin，请先安装 tailspin 后重试。原始错误: ${error.message}`,
+        ),
+      );
+    });
+
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolvePromise();
+        return;
+      }
+      rejectPromise(new Error(`tailspin 退出码异常: ${code ?? "null"}`));
+    });
+  });
 }
 
 async function retryBuildFromTask(buildId: string, taskName?: string) {
@@ -867,17 +1064,32 @@ function createCli() {
             description: "查看指定任务的上下文",
           }),
     )
-    .command("history", "查看最近的构建历史，或清空历史", (command) =>
+    .command(
+      "log <buildId>",
+      "查看某次构建日志（tailspin -p）",
+      (command) =>
+        command.positional("buildId", {
+          type: "string",
+          describe: "构建 ID，可传完整值或前缀",
+        }),
+    )
+    .command("history", "查看今天的构建历史", (command) =>
       command
         .option("limit", {
           type: "number",
           description: "限制显示条数，默认 10",
           default: 10,
-        })
-        .option("clear", {
+        }),
+    )
+    .command("clear", "清理历史（默认只清理今天以前）", (command) =>
+      command
+        .option("all", {
           type: "boolean",
-          description:
-            "清空所有 build history，仅清理数据库，不删除 log 和 output",
+          description: "清理全部构建历史",
+        })
+        .option("log", {
+          type: "boolean",
+          description: "同时删除对应日志文件",
         }),
     )
     .command("pipeline", "查看所有 pipeline", (command) => command)
@@ -890,7 +1102,7 @@ function createCli() {
           describe: "构建 ID，可传完整值或前缀",
         }),
     )
-    .demandCommand(1, "请先指定命令，例如 build、history、info。")
+    .demandCommand(1, "请先指定命令，例如 build、history、clear、info、log。")
     .strict()
     .recommendCommands()
     .fail((message, error, instance) => {
@@ -919,8 +1131,10 @@ function createCli() {
         "  $0 build --app hookAi --env production --branch main --platform ios,android",
         "  $0 build --app hookAi --env production --branch main --platform android",
         "  $0 info petdwVMJkImB --task uploadQiniu",
+        "  $0 log petdwVMJkImB",
         "  $0 history --limit 10",
-        "  $0 history --clear",
+        "  $0 clear --log",
+        "  $0 clear --all --log",
         "  $0 pipeline",
         "  $0 asc upload petdwVMJkImB",
         "",
@@ -1230,7 +1444,24 @@ function formatStartedAt(value: unknown) {
   if (!parsed.isValid()) {
     return value;
   }
-  return parsed.format("MM-DD HH:mm:ss");
+  return parsed.format("MM-DD HH:mm");
+}
+
+function formatDuration(value: unknown) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    return "-";
+  }
+
+  const totalSeconds = Math.floor(value / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}h${String(minutes).padStart(2, "0")}m`;
+  }
+
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
 function formatPlainBlock(value: unknown) {
@@ -1349,7 +1580,7 @@ async function resolveBuildSummary(
           render: (row, width) => formatCell(toResumeId(row.buildId), width),
         },
         { key: "status", title: "Status", maxWidth: 10, minWidth: 7 },
-        { key: "pipeId", title: "PipeId", maxWidth: 30, minWidth: 16 },
+        { key: "pipeId", title: "PipeId", maxWidth: 24, minWidth: 12 },
         {
           key: "startedAt",
           title: "StartedAt",

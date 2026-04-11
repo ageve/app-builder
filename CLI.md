@@ -78,20 +78,45 @@ bun cli info petdwVMJkImB
 bun cli info petdwVMJkImB --task uploadQiniu
 ```
 
-### `history [--limit <number>] [--clear]`
+### `log <buildId>`
 
-查看最近构建历史，或者清空历史。
+查看某次构建日志，会自动定位 `logs` 里对应文件并使用 `tailspin -p` 打开。
+
+```bash
+bun cli log petdwVMJkImB
+```
+
+说明：
+
+- 需要本机已安装 `tailspin`
+- 支持传入 `buildId` 前缀
+
+### `history [--limit <number>]`
+
+查看今天构建历史。
 
 ```bash
 bun cli history
 bun cli history --limit 10
-bun cli history --clear
 ```
 
 说明：
 
 - `--limit` 默认是 `10`
-- `--clear` 只清数据库历史，不删除日志和产物
+
+### `clear [--all] [--log]`
+
+清理构建历史。默认只清理今天以前的数据；`--all` 清理全部。
+
+```bash
+bun cli clear --log
+bun cli clear --all --log
+```
+
+说明：
+
+- 默认行为（不加 `--all`）：只清理今天以前的历史记录
+- `--log` 会同时删除对应日志文件
 
 ### `pipeline`
 
