@@ -66,11 +66,29 @@ export function createBuildPipelineIds(params: {
 export function extractTaskOptionsFromArgv(argv: Record<string, unknown>) {
   const taskOptions: HugoAivTaskOptions = {};
   const androidBuildClear = argv["android:buildAndroid.clear"];
+  const iosBuildPodInstall = argv["ios:buildIOS.podInstall"];
+  const iosBuildProvisioningAuto = argv["ios:buildIOS.provisioningAuto"];
 
   if (typeof androidBuildClear === "boolean") {
     taskOptions.android = {
       buildAndroid: {
         clear: androidBuildClear,
+      },
+    };
+  }
+
+  if (
+    typeof iosBuildPodInstall === "boolean" ||
+    typeof iosBuildProvisioningAuto === "boolean"
+  ) {
+    taskOptions.ios = {
+      buildIOS: {
+        ...(typeof iosBuildPodInstall === "boolean"
+          ? { podInstall: iosBuildPodInstall }
+          : {}),
+        ...(typeof iosBuildProvisioningAuto === "boolean"
+          ? { provisioningAuto: iosBuildProvisioningAuto }
+          : {}),
       },
     };
   }
@@ -115,20 +133,37 @@ function coerceTaskOptions(value: unknown) {
     androidOptions?.buildAndroid && typeof androidOptions.buildAndroid === "object"
       ? (androidOptions.buildAndroid as Record<string, unknown>)
       : null;
-
+  const iosOptions =
+    taskOptions.ios && typeof taskOptions.ios === "object"
+      ? (taskOptions.ios as Record<string, unknown>)
+      : null;
+  const buildIOSOptions =
+    iosOptions?.buildIOS && typeof iosOptions.buildIOS === "object"
+      ? (iosOptions.buildIOS as Record<string, unknown>)
+      : null;
+  const nextTaskOptions: HugoAivTaskOptions = {};
   if (typeof buildAndroidOptions?.clear === "boolean") {
-    return {
-      android: {
-        buildAndroid: {
-          clear: buildAndroidOptions.clear,
-        },
+    nextTaskOptions.android = {
+      buildAndroid: {
+        clear: buildAndroidOptions.clear,
       },
-    } satisfies HugoAivTaskOptions;
+    };
+  }
+  if (typeof buildIOSOptions?.podInstall === "boolean") {
+    nextTaskOptions.ios = nextTaskOptions.ios ?? { buildIOS: {} };
+    nextTaskOptions.ios.buildIOS = nextTaskOptions.ios.buildIOS ?? {};
+    nextTaskOptions.ios.buildIOS.podInstall = buildIOSOptions.podInstall;
+  }
+  if (typeof buildIOSOptions?.provisioningAuto === "boolean") {
+    nextTaskOptions.ios = nextTaskOptions.ios ?? { buildIOS: {} };
+    nextTaskOptions.ios.buildIOS = nextTaskOptions.ios.buildIOS ?? {};
+    nextTaskOptions.ios.buildIOS.provisioningAuto =
+      buildIOSOptions.provisioningAuto;
   }
 
-  return undefined;
+  return hasTaskOptions(nextTaskOptions) ? nextTaskOptions : undefined;
 }
 
 function hasTaskOptions(taskOptions: HugoAivTaskOptions) {
-  return Boolean(taskOptions.android?.buildAndroid);
+  return Boolean(taskOptions.android?.buildAndroid || taskOptions.ios?.buildIOS);
 }

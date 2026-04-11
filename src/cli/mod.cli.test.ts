@@ -30,6 +30,8 @@ describe("mod.ts help", () => {
     expect(result.stdout).toContain("asc upload <buildId>");
     expect(result.stdout).toContain("log <buildId>");
     expect(result.stdout).toContain("--android:buildAndroid.clear false");
+    expect(result.stdout).toContain("--ios:buildIOS.podInstall true");
+    expect(result.stdout).toContain("--ios:buildIOS.provisioningAuto true");
     expect(result.stdout).toContain("clear --all --log");
     expect(result.stdout).toContain("查看今天的构建历史");
     expect(result.stdout).toContain("平台专属参数格式");
@@ -42,6 +44,8 @@ describe("mod.ts help", () => {
     expect(result.stdout).toContain("--platform");
     expect(result.stdout).toContain("ios,android");
     expect(result.stdout).toContain("--android:buildAndroid.clear");
+    expect(result.stdout).toContain("--ios:buildIOS.podInstall");
+    expect(result.stdout).toContain("--ios:buildIOS.provisioningAuto");
     expect(result.stdout).toContain("不传时沿用当前项目原有逻辑");
   });
 

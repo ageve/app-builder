@@ -103,7 +103,10 @@ bun cli clear --all --log
 - 必填参数：`--app`、`--env`、`--branch`、`--platform`
 - `--platform` 支持多个值，逗号分隔，例如 `ios,android`
 - 平台专属参数格式：`--平台:任务名.参数名 值`
-- 当前已支持：`--android:buildAndroid.clear false`
+- 当前已支持：
+  - `--android:buildAndroid.clear false`
+  - `--ios:buildIOS.podInstall true|false`（`true` 强制，`false`/不传按需）
+  - `--ios:buildIOS.provisioningAuto true|false`（默认 `false`，按需开启）
 - 清理历史：`bun cli clear --log`（默认清理今天以前，并删对应日志）
 - 全量清理：`bun cli clear --all --log`
 - 缺少必填参数时会直接报错，不会弹选择框

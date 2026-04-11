@@ -49,6 +49,12 @@ export type HugoAivTaskOptions = {
       clear?: boolean;
     };
   };
+  ios?: {
+    buildIOS?: {
+      podInstall?: boolean;
+      provisioningAuto?: boolean;
+    };
+  };
 };
 
 export type HugoAivPipelineArgs = Args & {
@@ -159,6 +165,9 @@ export function createHugoAivPipelines({
     const autoVersionCode = env === "production" || args.autoVersionCode;
     const legacyVersioning = args.legacyVersioning || false;
     const androidBuildClear = args.taskOptions?.android?.buildAndroid?.clear ?? true;
+    const iosBuildPodInstall = args.taskOptions?.ios?.buildIOS?.podInstall;
+    const iosBuildProvisioningAuto =
+      args.taskOptions?.ios?.buildIOS?.provisioningAuto;
 
     const agconnectFile = resolve(
       cwd(),
@@ -184,6 +193,8 @@ export function createHugoAivPipelines({
               projectName: "aiv",
               schema: "aiv",
               buildType: "Release",
+              podInstall: iosBuildPodInstall,
+              provisioningAuto: iosBuildProvisioningAuto,
               exportOptionsPath: {
                 adHoc: resolve(
                   cwd(),
@@ -251,6 +262,32 @@ export function createHugoAivPipelines({
       "[buildPipeline]tasks " + tasks.map((task) => task.name).join(" "),
     );
 
+    const iosBuildTaskOptions: {
+      podInstall?: boolean;
+      provisioningAuto?: boolean;
+    } = {};
+    if (typeof iosBuildPodInstall === "boolean") {
+      iosBuildTaskOptions.podInstall = iosBuildPodInstall;
+    }
+    if (typeof iosBuildProvisioningAuto === "boolean") {
+      iosBuildTaskOptions.provisioningAuto = iosBuildProvisioningAuto;
+    }
+
+    const taskOptions: HugoAivTaskOptions = {
+      android: {
+        buildAndroid: {
+          clear: androidBuildClear,
+        },
+      },
+      ...(Object.keys(iosBuildTaskOptions).length > 0
+        ? {
+            ios: {
+              buildIOS: iosBuildTaskOptions,
+            },
+          }
+        : {}),
+    };
+
     const pipeline = new Pipeline(
       {
         config,
@@ -265,13 +302,7 @@ export function createHugoAivPipelines({
           packageAlias,
           autoVersionCode: Boolean(autoVersionCode),
           legacyVersioning,
-          taskOptions: {
-            android: {
-              buildAndroid: {
-                clear: androidBuildClear,
-              },
-            },
-          },
+          taskOptions,
         },
       },
       tasks,

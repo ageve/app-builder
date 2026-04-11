@@ -288,6 +288,51 @@ bun cli build --app hookAi --env production --branch main --platform ios,android
 - 这个参数只对 `android` 生效
 - `ios` 会忽略它
 
+#### `--ios:buildIOS.podInstall <boolean>`
+
+传给 iOS 的 `buildIOS` 任务。
+
+可选值：
+
+- `true`
+- `false`
+
+含义：
+
+- `true`：强制执行 `pod install`
+- `false`：按需执行 `pod install`
+
+不传时：
+
+- 按需执行 `pod install`（`Podfile.lock` 与 `Pods/Manifest.lock` 不一致时才执行）
+
+示例：
+
+```bash
+bun cli build --app hookAi --env production --branch main --platform ios --ios:buildIOS.podInstall false
+bun cli build --app hookAi --env production --branch main --platform ios --ios:buildIOS.podInstall true
+```
+
+#### `--ios:buildIOS.provisioningAuto <boolean>`
+
+传给 iOS 的 `buildIOS` 任务，控制导出阶段是否自动更新签名资源和注册设备。
+
+可选值：
+
+- `true`
+- `false`
+
+含义：
+
+- `true`：导出时允许自动签名更新和设备注册（按需开启）
+- `false`：导出时关闭自动签名更新和设备注册
+
+示例：
+
+```bash
+bun cli build --app hookAi --env production --branch main --platform ios --ios:buildIOS.provisioningAuto false
+```
+
 ## 常见命令示例
 
 ### Android 正式包

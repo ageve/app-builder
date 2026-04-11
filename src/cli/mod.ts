@@ -68,6 +68,8 @@ type CliArgs = {
   autoVersionCode?: boolean;
   legacyVersioning?: boolean;
   "android:buildAndroid.clear"?: boolean;
+  "ios:buildIOS.podInstall"?: boolean;
+  "ios:buildIOS.provisioningAuto"?: boolean;
 };
 
 async function main() {
@@ -269,7 +271,10 @@ async function clearBuildData(options: {
     targetBuildIds = await listBuildIdsBefore(db, cutoff);
 
     if (clearLogs) {
-      const files = await listBuildHistoryLogFilesByBuildIds(db, targetBuildIds);
+      const files = await listBuildHistoryLogFilesByBuildIds(
+        db,
+        targetBuildIds,
+      );
       removedLogs = clearManagedLogFiles(files);
     }
 
@@ -621,9 +626,10 @@ function resolveLogFileFromHistory(
   const renameTask = [...history]
     .reverse()
     .find((item) => item.task_name === "renameLog");
-  const renameOutput = parseJsonValue(renameTask?.task_output) as
-    | Record<string, unknown>
-    | null;
+  const renameOutput = parseJsonValue(renameTask?.task_output) as Record<
+    string,
+    unknown
+  > | null;
   const renamePath =
     typeof renameOutput?.archivedLogFile === "string"
       ? renameOutput.archivedLogFile
@@ -638,15 +644,14 @@ function resolveLogFileFromHistory(
     const candidates = readdirSync(logsDir)
       .filter((filename) => filename.endsWith(".log"))
       .filter(
-        (filename) => filename.startsWith(prefixA) || filename.startsWith(prefixB),
+        (filename) =>
+          filename.startsWith(prefixA) || filename.startsWith(prefixB),
       )
       .map((filename) => resolve(logsDir, filename))
       .filter((filePath) => existsSync(filePath));
 
     if (candidates.length > 0) {
-      candidates.sort(
-        (a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs,
-      );
+      candidates.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
       return candidates[0];
     }
   }
@@ -654,7 +659,9 @@ function resolveLogFileFromHistory(
   const historyLogCandidates = [...history]
     .reverse()
     .map((item) => item.log_file)
-    .filter((value): value is string => typeof value === "string" && value !== "")
+    .filter(
+      (value): value is string => typeof value === "string" && value !== "",
+    )
     .filter((filePath) => filePath.includes("/logs/") && existsSync(filePath));
 
   if (historyLogCandidates.length > 0) {
@@ -1082,6 +1089,16 @@ function createCli() {
             type: "boolean",
             description:
               "Android 专属；传给 buildAndroid 任务。true 先清理再构建，false 跳过清理直接构建",
+          })
+          .option("ios:buildIOS.podInstall", {
+            type: "boolean",
+            description:
+              "iOS 专属；传给 buildIOS 任务。true 强制执行 pod install；false 或不传时按需执行",
+          })
+          .option("ios:buildIOS.provisioningAuto", {
+            type: "boolean",
+            description:
+              "iOS 专属；传给 buildIOS 任务。控制导出阶段自动签名更新和设备注册；不传时默认关闭",
           }),
     )
     .command(
@@ -1098,22 +1115,18 @@ function createCli() {
             description: "查看指定任务的上下文",
           }),
     )
-    .command(
-      "log <buildId>",
-      "查看某次构建日志（tspin -p）",
-      (command) =>
-        command.positional("buildId", {
-          type: "string",
-          describe: "构建 ID，可传完整值或前缀",
-        }),
+    .command("log <buildId>", "查看某次构建日志（tspin -p）", (command) =>
+      command.positional("buildId", {
+        type: "string",
+        describe: "构建 ID，可传完整值或前缀",
+      }),
     )
     .command("history", "查看今天的构建历史", (command) =>
-      command
-        .option("limit", {
-          type: "number",
-          description: "限制显示条数，默认 10",
-          default: 10,
-        }),
+      command.option("limit", {
+        type: "number",
+        description: "限制显示条数，默认 10",
+        default: 10,
+      }),
     )
     .command("clear", "清理历史（默认只清理今天以前）", (command) =>
       command
@@ -1180,13 +1193,15 @@ function createCli() {
         "  缺少必填参数时会直接报错，不走选择框",
         "",
         "build 参数说明:",
-        "  --app hookAi                        应用，当前只支持 hookAi",
-        "  --env alpha|production              环境",
-        "  --branch alpha|main                 分支",
-        "  --platform ios,android              平台；支持单个或多个值",
-        "  --autoVersionCode                   全局版本参数；控制 versionCode 递增",
-        "  --legacyVersioning                  全局版本参数；启用旧版本号兼容逻辑",
-        "  --android:buildAndroid.clear false  Android 专属；跳过 gradlew clean 直接构建",
+        "  --app hookAi                           应用，当前只支持 hookAi",
+        "  --env alpha|production                 环境",
+        "  --branch alpha|main                    分支",
+        "  --platform ios,android                 平台；支持单个或多个值",
+        "  --autoVersionCode                      全局版本参数；控制 versionCode 递增",
+        "  --legacyVersioning                     全局版本参数；启用旧版本号兼容逻辑",
+        "  --android:buildAndroid.clear false     Android 专属；跳过 gradlew clean 直接构建",
+        "  --ios:buildIOS.podInstall true         iOS 专属；强制执行 pod install（不传则按需）",
+        "  --ios:buildIOS.provisioningAuto true   iOS 专属；按需开启导出时自动签名更新/设备注册（用于开发包、AdHoc）",
       ].join("\n"),
     )
     .alias("h", "help")
@@ -1236,6 +1251,18 @@ async function buildHugoAivFromCommand(argv: CliArgs) {
       "android:buildAndroid.clear",
       typeof argv["android:buildAndroid.clear"] === "boolean"
         ? String(argv["android:buildAndroid.clear"])
+        : "-",
+    ],
+    [
+      "ios:buildIOS.podInstall",
+      typeof argv["ios:buildIOS.podInstall"] === "boolean"
+        ? String(argv["ios:buildIOS.podInstall"])
+        : "-",
+    ],
+    [
+      "ios:buildIOS.provisioningAuto",
+      typeof argv["ios:buildIOS.provisioningAuto"] === "boolean"
+        ? String(argv["ios:buildIOS.provisioningAuto"])
         : "-",
     ],
   ]);

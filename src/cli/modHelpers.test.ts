@@ -39,6 +39,34 @@ describe("extractTaskOptionsFromArgv()", () => {
       },
     });
   });
+
+  it("读取 ios buildIOS podInstall 参数", () => {
+    expect(
+      extractTaskOptionsFromArgv({
+        "ios:buildIOS.podInstall": false,
+      }),
+    ).toEqual({
+      ios: {
+        buildIOS: {
+          podInstall: false,
+        },
+      },
+    });
+  });
+
+  it("读取 ios buildIOS provisioningAuto 参数", () => {
+    expect(
+      extractTaskOptionsFromArgv({
+        "ios:buildIOS.provisioningAuto": false,
+      }),
+    ).toEqual({
+      ios: {
+        buildIOS: {
+          provisioningAuto: false,
+        },
+      },
+    });
+  });
 });
 
 describe("createBuildPipelineIds()", () => {
@@ -69,6 +97,12 @@ describe("createPipelineArgsFromBuildOptions()", () => {
               clear: false,
             },
           },
+          ios: {
+            buildIOS: {
+              podInstall: false,
+              provisioningAuto: false,
+            },
+          },
         },
       }),
     ).toEqual({
@@ -79,6 +113,12 @@ describe("createPipelineArgsFromBuildOptions()", () => {
         android: {
           buildAndroid: {
             clear: false,
+          },
+        },
+        ios: {
+          buildIOS: {
+            podInstall: false,
+            provisioningAuto: false,
           },
         },
       },
