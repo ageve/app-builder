@@ -5,7 +5,7 @@ import { ensureDirSync } from "fs-extra";
 import { nanoid } from "nanoid";
 import { basename, resolve } from "node:path";
 import { cwd } from "node:process";
-import { rimraf } from "rimraf";
+import { rimrafSync } from "rimraf";
 import {
   acquireBuildRunLock,
   initBuildHistoryDb,
@@ -52,7 +52,7 @@ export default class Pipeline {
       resolve(cwd(), `../app-builder-cache/projects/${projectName}`);
     const output = resolve(cwd(), `./build/${projectName}`);
     if (options.clean) {
-      rimraf(output);
+      rimrafSync(output);
     }
     ensureDirSync(workspace);
     ensureDirSync(output);
