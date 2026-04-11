@@ -1,6 +1,13 @@
 import { log } from "@clack/prompts";
 import dayjs from "dayjs";
-import { existsSync, readdirSync, rmSync, statSync } from "node:fs";
+import {
+  accessSync,
+  constants,
+  existsSync,
+  readdirSync,
+  rmSync,
+  statSync,
+} from "node:fs";
 import { colorize } from "json-colorizer";
 import { resolve } from "node:path";
 import { cwd } from "node:process";
@@ -659,14 +666,15 @@ function resolveLogFileFromHistory(
 
 function runTailspin(logFile: string) {
   return new Promise<void>((resolvePromise, rejectPromise) => {
-    const child = spawn("tailspin", ["-p", logFile], {
+    const viewer = resolveTailspinViewer();
+    const child = spawn(viewer.command, viewer.args(logFile), {
       stdio: "inherit",
     });
 
     child.on("error", (error) => {
       rejectPromise(
         new Error(
-          `无法启动 tailspin，请先安装 tailspin 后重试。原始错误: ${error.message}`,
+          `无法启动日志查看器，请先安装 tailspin（命令 tspin）后重试。原始错误: ${error.message}`,
         ),
       );
     });
@@ -676,9 +684,35 @@ function runTailspin(logFile: string) {
         resolvePromise();
         return;
       }
-      rejectPromise(new Error(`tailspin 退出码异常: ${code ?? "null"}`));
+      rejectPromise(new Error(`tspin 退出码异常: ${code ?? "null"}`));
     });
   });
+}
+
+function resolveTailspinViewer() {
+  const preferredPaths = ["/opt/homebrew/bin/tspin", "/usr/local/bin/tspin"];
+  for (const path of preferredPaths) {
+    if (isExecutable(path)) {
+      return {
+        command: path,
+        args: (logFile: string) => ["-p", logFile],
+      };
+    }
+  }
+
+  return {
+    command: "tspin",
+    args: (logFile: string) => ["-p", logFile],
+  };
+}
+
+function isExecutable(path: string) {
+  try {
+    accessSync(path, constants.X_OK);
+    return true;
+  } catch (_error) {
+    return false;
+  }
 }
 
 async function retryBuildFromTask(buildId: string, taskName?: string) {
@@ -1066,7 +1100,7 @@ function createCli() {
     )
     .command(
       "log <buildId>",
-      "查看某次构建日志（tailspin -p）",
+      "查看某次构建日志（tspin -p）",
       (command) =>
         command.positional("buildId", {
           type: "string",

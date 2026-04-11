@@ -80,7 +80,7 @@ bun cli info petdwVMJkImB --task uploadQiniu
 
 ### `log <buildId>`
 
-查看某次构建日志，会自动定位 `logs` 里对应文件并使用 `tailspin -p` 打开。
+查看某次构建日志，会自动定位 `logs` 里对应文件并使用 `tspin -p` 打开。
 
 ```bash
 bun cli log petdwVMJkImB
@@ -88,7 +88,7 @@ bun cli log petdwVMJkImB
 
 说明：
 
-- 需要本机已安装 `tailspin`
+- 需要本机已安装 `tailspin`（命令名是 `tspin`）
 - 支持传入 `buildId` 前缀
 
 ### `history [--limit <number>]`
