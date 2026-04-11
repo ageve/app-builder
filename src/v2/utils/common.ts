@@ -1,6 +1,8 @@
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
 import { parse } from "dotenv";
+import { ensureDirSync, ensureFileSync } from "fs-extra";
+import { dirname } from "node:path";
 import { rimrafSync } from "rimraf";
 import winston from "winston";
 import { Task } from "../types";
@@ -21,6 +23,8 @@ export const createLogger = ({
   clean?: boolean;
 }) => {
   clean && rimrafSync(filename);
+  ensureDirSync(dirname(filename));
+  ensureFileSync(filename);
   return winston.createLogger({
     level: "info",
     format: winston.format.combine(
