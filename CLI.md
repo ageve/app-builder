@@ -98,11 +98,15 @@ bun cli log petdwVMJkImB
 ```bash
 bun cli history
 bun cli history --limit 10
+bun cli history --filter platform=ios
+bun cli history --filter platform=ios,env=alpha
 ```
 
 说明：
 
 - `--limit` 默认是 `10`
+- `--filter` 支持 `key=value,key2=value2`；也支持重复传入 `--filter`
+- 当前支持字段：`platform`、`env`、`branch`、`status`、`pipeId`、`projectName`、`buildId`
 
 ### `clear [--all] [--log]`
 

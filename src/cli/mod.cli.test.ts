@@ -33,6 +33,7 @@ describe("mod.ts help", () => {
     expect(result.stdout).toContain("--ios:buildIOS.podInstall true");
     expect(result.stdout).toContain("--ios:buildIOS.provisioningAuto true");
     expect(result.stdout).toContain("clear --all --log");
+    expect(result.stdout).toContain("history --filter platform=ios,env=alpha");
     expect(result.stdout).toContain("查看今天的构建历史");
     expect(result.stdout).toContain("平台专属参数格式");
   });
@@ -56,6 +57,14 @@ describe("mod.ts help", () => {
     expect(result.stdout).toContain("--all");
     expect(result.stdout).toContain("--log");
     expect(result.stdout).toContain("默认只清理今天以前");
+  });
+
+  it("history 帮助里展示 filter 参数", async () => {
+    const result = await runCli(["history", "--help"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("--filter");
+    expect(result.stdout).toContain("key=value,key2=value2");
   });
 
   it("缺少 build 必填参数时直接报错", async () => {

@@ -66,6 +66,7 @@ bun cli -h
 ```bash
 bun cli init
 bun cli history --limit 10
+bun cli history --filter platform=ios,env=alpha
 bun cli clear --log
 bun cli info petdwVMJkImB
 bun cli log petdwVMJkImB
@@ -102,6 +103,7 @@ bun cli clear --all --log
 
 - 必填参数：`--app`、`--env`、`--branch`、`--platform`
 - `--platform` 支持多个值，逗号分隔，例如 `ios,android`
+- `history` 支持 `--filter key=value,key2=value2`（也可重复），例如 `--filter platform=ios,env=alpha`
 - 平台专属参数格式：`--平台:任务名.参数名 值`
 - 当前已支持：
   - `--android:buildAndroid.clear false`

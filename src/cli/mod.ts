@@ -60,6 +60,7 @@ type CliArgs = {
   all?: boolean;
   log?: boolean;
   limit?: number;
+  filter?: string[] | string;
   task?: string;
   app?: string;
   env?: string;
@@ -84,7 +85,7 @@ async function main() {
   const command = typeof argv._[0] === "string" ? argv._[0] : "";
 
   if (command === "history") {
-    await listBuilds(argv.limit);
+    await listBuilds(argv.limit, parseHistoryFilters(argv.filter));
     return;
   }
 
@@ -143,15 +144,19 @@ async function main() {
   cli.showHelp();
 }
 
-async function listBuilds(limit = 10) {
+async function listBuilds(
+  limit = 10,
+  filters: Record<string, string> = {},
+) {
   const db = await createReadonlyConnect();
   try {
     const safeLimit = Number.isFinite(limit)
       ? Math.max(1, Math.floor(limit))
       : 10;
     const today = dayjs().format("YYYY-MM-DD");
-    const builds = hideSupersededBuilds(
-      await listBuildSummariesByDate(db, today),
+    const builds = filterBuildSummaries(
+      hideSupersededBuilds(await listBuildSummariesByDate(db, today)),
+      filters,
     ).slice(0, safeLimit);
 
     if (builds.length === 0) {
@@ -318,6 +323,97 @@ function clearManagedLogFiles(files: string[]) {
   }
 
   return removed;
+}
+
+function parseHistoryFilters(input?: string[] | string) {
+  const entries = Array.isArray(input) ? input : input ? [input] : [];
+  const filters: Record<string, string> = {};
+  const supportedKeys = [
+    "platform",
+    "env",
+    "branch",
+    "status",
+    "pipeId",
+    "project",
+    "projectName",
+    "buildId",
+  ];
+
+  for (const entry of entries) {
+    const clauses = String(entry)
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    for (const text of clauses) {
+      const separatorIndex = text.indexOf("=");
+      if (separatorIndex <= 0 || separatorIndex === text.length - 1) {
+        exitWithCliError(
+          `--filter 格式错误: ${text}，请使用 key=value，例如 --filter platform=ios,env=alpha`,
+        );
+      }
+
+      const key = text.slice(0, separatorIndex).trim();
+      const value = text.slice(separatorIndex + 1).trim();
+      if (!key || !value) {
+        exitWithCliError(
+          `--filter 格式错误: ${text}，请使用 key=value，例如 --filter platform=ios,env=alpha`,
+        );
+      }
+
+      if (!supportedKeys.includes(key)) {
+        exitWithCliError(
+          `--filter 暂不支持字段: ${key}。当前支持: ${supportedKeys.join(", ")}`,
+        );
+      }
+
+      filters[key] = value;
+    }
+  }
+
+  return filters;
+}
+
+function filterBuildSummaries(
+  builds: BuildSummary[],
+  filters: Record<string, string>,
+) {
+  const entries = Object.entries(filters);
+  if (entries.length === 0) {
+    return builds;
+  }
+
+  return builds.filter((build) =>
+    entries.every(([key, expected]) => {
+      const actual = readBuildFilterValue(build, key);
+      if (!actual) {
+        return false;
+      }
+      return actual.toLowerCase() === expected.toLowerCase();
+    }),
+  );
+}
+
+function readBuildFilterValue(build: BuildSummary, key: string) {
+  switch (key) {
+    case "platform":
+      return build.platform ?? null;
+    case "env":
+      return build.env ?? null;
+    case "branch":
+      return build.branch ?? null;
+    case "status":
+      return build.status ?? null;
+    case "pipeId":
+      return build.pipeId ?? null;
+    case "project":
+    case "projectName":
+      return build.projectName ?? null;
+    case "buildId":
+      return build.buildId ?? null;
+    default:
+      return null;
+  }
 }
 
 function hideSupersededBuilds(builds: BuildSummary[]) {
@@ -1126,6 +1222,11 @@ function createCli() {
         type: "number",
         description: "限制显示条数，默认 10",
         default: 10,
+      }).option("filter", {
+        type: "array",
+        string: true,
+        description:
+          "过滤条件，支持 key=value,key2=value2；也支持重复传入 --filter。示例：--filter platform=ios,env=alpha",
       }),
     )
     .command("clear", "清理历史（默认只清理今天以前）", (command) =>
@@ -1180,6 +1281,7 @@ function createCli() {
         "  $0 info petdwVMJkImB --task uploadQiniu",
         "  $0 log petdwVMJkImB",
         "  $0 history --limit 10",
+        "  $0 history --filter platform=ios,env=alpha",
         "  $0 clear --log",
         "  $0 clear --all --log",
         "  $0 pipeline",

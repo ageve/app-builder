@@ -18,6 +18,8 @@ type Options = {
 };
 async function buildIOS(context: any, options: Options) {
   try {
+    const totalStart = Date.now();
+    const stageDurationsMs: Record<string, number> = {};
     const { workspace, output, prepareEnv, logger, env } = context;
     const { versionName, applicationId, envFileCache } = prepareEnv;
     const {
@@ -42,11 +44,16 @@ async function buildIOS(context: any, options: Options) {
 
     if (podInstall === true) {
       log.info("Run pod install: forced by build option.");
+      const podStart = Date.now();
       await $`pod install`;
+      stageDurationsMs.podInstall = Date.now() - podStart;
     } else if (shouldRunPodInstall(workspace)) {
+      const podStart = Date.now();
       await $`pod install`;
+      stageDurationsMs.podInstall = Date.now() - podStart;
     } else {
       log.info("Skip pod install: Podfile.lock unchanged.");
+      stageDurationsMs.podInstall = 0;
     }
 
     // 清理缓存
@@ -55,7 +62,9 @@ async function buildIOS(context: any, options: Options) {
     }
 
     // archive app
+    const archiveStart = Date.now();
     await $`xcodebuild archive -workspace ${projectName}.xcworkspace -scheme ${schema} -configuration ${buildType} -disableAutomaticPackageResolution -destination generic/platform=ios -archivePath build/${schema} -quiet | xcpretty`;
+    stageDurationsMs.archive = Date.now() - archiveStart;
 
     const ipaFiles: Record<Distribution, string> = { adHoc: "", appStore: "" };
 
@@ -68,18 +77,23 @@ async function buildIOS(context: any, options: Options) {
         ? ["-allowProvisioningUpdates", "-allowProvisioningDeviceRegistration"]
         : [];
 
+      const exportStart = Date.now();
       await $`xcodebuild -exportArchive -archivePath build/${schema}.xcarchive -exportPath ${ipaPath} -exportOptionsPlist ${exportOptionsPath[distribution]} ${provisioningArgs} -quiet | xcpretty`;
+      stageDurationsMs[`export.${distribution}`] = Date.now() - exportStart;
 
       ipaFiles[distribution] = `${ipaPath}/${ipaName}.ipa`;
     }
+    stageDurationsMs.total = Date.now() - totalStart;
 
     const result = {
       archiveFile: resolve(workspace, `./ios/build/${schema}.xcarchive`),
       ipaFiles,
+      stageDurationsMs,
     };
 
     log.info(JSON.stringify(result));
-    logger.info(result);
+    log.info(`[buildIOS] stageDurationsMs ${JSON.stringify(stageDurationsMs)}`);
+    logger.info(JSON.stringify(result));
     return result;
   } catch (error) {
     console.log(error);
