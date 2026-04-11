@@ -737,11 +737,14 @@ function resolveLogFileFromHistory(
   if (existsSync(logsDir)) {
     const prefixA = `${summary.buildId}.`;
     const prefixB = `${summary.buildId}_`;
+    const suffixA = `-${summary.buildId}.log`;
     const candidates = readdirSync(logsDir)
       .filter((filename) => filename.endsWith(".log"))
       .filter(
         (filename) =>
-          filename.startsWith(prefixA) || filename.startsWith(prefixB),
+          filename.startsWith(prefixA) ||
+          filename.startsWith(prefixB) ||
+          filename.endsWith(suffixA),
       )
       .map((filename) => resolve(logsDir, filename))
       .filter((filePath) => existsSync(filePath));

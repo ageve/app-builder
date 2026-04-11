@@ -62,15 +62,23 @@ async function buildIOS(context: any, options: Options) {
     }
 
     // archive app
+    const archiveTimingLog = resolve(
+      workspace,
+      "./ios/build/archive-timing-summary.log",
+    );
     const archiveStart = Date.now();
-    await $`xcodebuild archive -workspace ${projectName}.xcworkspace -scheme ${schema} -configuration ${buildType} -disableAutomaticPackageResolution -destination generic/platform=ios -archivePath build/${schema} -quiet | xcpretty`;
+    await $`bash -lc "set -o pipefail; xcodebuild archive -workspace ${projectName}.xcworkspace -scheme ${schema} -configuration ${buildType} -disableAutomaticPackageResolution -destination generic/platform=ios -archivePath build/${schema} -showBuildTimingSummary | tee ${archiveTimingLog} | xcpretty"`;
     stageDurationsMs.archive = Date.now() - archiveStart;
+    const archiveTimingTop = readArchiveTimingTop(archiveTimingLog, 8);
+    if (archiveTimingTop.length > 0) {
+      log.info(`[buildIOS] archiveTimingTop ${JSON.stringify(archiveTimingTop)}`);
+    }
 
     const ipaFiles: Record<Distribution, string> = { adHoc: "", appStore: "" };
 
     for (let distribution of distributions) {
       log.info(
-        `Export ipa for ${distribution} ${exportOptionsPath[distribution]}`
+        `Export ipa for ${distribution} ${exportOptionsPath[distribution]}`,
       );
       const ipaPath = `${output}/${applicationId}_${env}_${versionName}_${distribution}`;
       const provisioningArgs = provisioningAuto
@@ -84,16 +92,23 @@ async function buildIOS(context: any, options: Options) {
       ipaFiles[distribution] = `${ipaPath}/${ipaName}.ipa`;
     }
     stageDurationsMs.total = Date.now() - totalStart;
+    const stageDurations = Object.fromEntries(
+      Object.entries(stageDurationsMs).map(([key, ms]) => [
+        key,
+        formatDurationHuman(ms),
+      ]),
+    );
 
     const result = {
       archiveFile: resolve(workspace, `./ios/build/${schema}.xcarchive`),
       ipaFiles,
-      stageDurationsMs,
+      stageDurations,
+      archiveTimingTop,
     };
 
     log.info(JSON.stringify(result));
-    log.info(`[buildIOS] stageDurationsMs ${JSON.stringify(stageDurationsMs)}`);
-    logger.info(JSON.stringify(result));
+    log.info(`[buildIOS] stageDurations ${JSON.stringify(stageDurations)}`);
+    logger.info(result);
     return result;
   } catch (error) {
     console.log(error);
@@ -124,5 +139,37 @@ function shouldRunPodInstall(workspace: string) {
     return podfileContent !== manifestContent;
   } catch (_error) {
     return true;
+  }
+}
+
+function formatDurationHuman(ms: number) {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes} min ${seconds} s`;
+}
+
+function readArchiveTimingTop(filePath: string, limit = 8) {
+  if (!existsSync(filePath)) {
+    return [];
+  }
+
+  try {
+    const lines = readFileSync(filePath, "utf8")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    const candidates = lines
+      .filter((line) => /second/.test(line.toLowerCase()))
+      .filter(
+        (line) =>
+          !line.toLowerCase().includes("total execution time") &&
+          !line.startsWith("** "),
+      );
+
+    return candidates.slice(0, limit);
+  } catch (_error) {
+    return [];
   }
 }

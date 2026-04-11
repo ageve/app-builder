@@ -34,7 +34,7 @@ describe("renameLog", () => {
       throw new Error("archivedLogFile should be generated");
     }
 
-    expect(basename(archivedLogFile)).toMatch(/^abc123xyz\.\d{8}\.log$/);
+    expect(basename(archivedLogFile)).toMatch(/^\d{8}-abc123xyz\.log$/);
     expect(result?.sourceLogFile).toBe(sourceLogFile);
     expect(String(context.logFile)).toBe(archivedLogFile);
     expect(readFileSync(archivedLogFile, "utf8")).toBe("hello-log");

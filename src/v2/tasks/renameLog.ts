@@ -24,7 +24,7 @@ async function renameLog(context: any, _external = "") {
 
     const archivedLogFile = resolve(
       cwd,
-      `./logs/${projectName}/${logoInfo}.${dayjs().format("MMDDHHmm")}.log`
+      `./logs/${projectName}/${dayjs().format("YYYYMMDD")}-${logoInfo}.log`
     );
     log.info(`${logFile} => ${archivedLogFile}`);
     copyFileSync(logFile, archivedLogFile);
