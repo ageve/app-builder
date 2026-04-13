@@ -74,4 +74,13 @@ describe("mod.ts help", () => {
     expect(result.exitCode).toBe(1);
     expect(combinedOutput).toContain("缺少必要参数");
   });
+
+  it("asc upload 子命令会被正确识别", async () => {
+    const result = await runCli(["asc", "upload", "non-existent-build-id"]);
+    const combinedOutput = `${result.stdout}\n${result.stderr}`;
+
+    expect(result.exitCode).toBe(0);
+    expect(combinedOutput).toContain("上传到 App Store Connect");
+    expect(combinedOutput).not.toContain("不支持的 asc 子命令");
+  });
 });

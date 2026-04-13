@@ -56,6 +56,7 @@ import type { BuildSummary } from "../utils/sqliteUtil";
 
 type CliArgs = {
   _: Array<string | number>;
+  upload?: string;
   buildId?: string;
   all?: boolean;
   log?: boolean;
@@ -133,7 +134,7 @@ async function main() {
   }
 
   if (command === "asc") {
-    const ascAction = typeof argv._[1] === "string" ? argv._[1] : "";
+    const ascAction = typeof argv.upload === "string" ? argv.upload : "";
     if (ascAction === "upload") {
       await uploadBuildToAppStore(String(argv.buildId ?? ""));
       return;
