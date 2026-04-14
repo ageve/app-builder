@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -32,6 +33,15 @@ type model struct {
 	err       string
 	rowStartY int
 }
+
+type autoQuitMsg struct{}
+
+const (
+	paddingTop    = 1
+	paddingBottom = 1
+	paddingLeft   = 2
+	paddingRight  = 2
+)
 
 func main() {
 	var dataPath string
@@ -58,7 +68,7 @@ func main() {
 	m := model{
 		rows:      rows,
 		status:    "点击任意一行即可复制 BuildId（按 q 或 esc 退出）",
-		rowStartY: 4,
+		rowStartY: paddingTop + 4,
 	}
 
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
@@ -74,6 +84,8 @@ func (m model) Init() tea.Cmd {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch t := msg.(type) {
+	case autoQuitMsg:
+		return m, tea.Quit
 	case tea.KeyMsg:
 		switch t.String() {
 		case "q", "esc", "ctrl+c":
@@ -101,42 +113,51 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		m.err = ""
-		m.status = fmt.Sprintf("已复制 BuildId: %s", picked.BuildID)
+		m.status = fmt.Sprintf("已复制 BuildId: %s（1 秒后自动退出）", picked.BuildID)
+		return m, tea.Tick(time.Second, func(time.Time) tea.Msg {
+			return autoQuitMsg{}
+		})
 	}
 
 	return m, nil
 }
 
 func (m model) View() string {
-	result := "History Picker\n"
-	result += "\n"
-	header := "BuildId         Status       PipeId                   App      Env      Branch     Platform  StartedAt   Duration FailedTask"
-	result += header + "\n"
-	result += strings.Repeat("-", len(header)) + "\n"
+	result := strings.Repeat("\n", paddingTop)
+	header := "BuildId         Status       PipeId                   App      Env        Branch     Platform  StartedAt   Duration FailedTask"
+	result += withHorizontalPadding("History Picker") + "\n"
+	result += withHorizontalPadding("") + "\n"
+	result += withHorizontalPadding(header) + "\n"
+	result += withHorizontalPadding(strings.Repeat("-", len(header))) + "\n"
 
 	for _, item := range m.rows {
-		result += fmt.Sprintf("%-15s %-12s %-24s %-8s %-8s %-10s %-9s %-11s %-8s %s\n",
+		result += withHorizontalPadding(fmt.Sprintf("%-15s %-12s %-24s %-8s %-10s %-10s %-9s %-11s %-8s %s",
 			truncate(item.BuildID, 15),
 			truncate(item.Status, 12),
 			truncate(item.PipeID, 24),
 			truncate(item.App, 8),
-			truncate(item.Env, 8),
+			item.Env,
 			truncate(item.Branch, 10),
 			truncate(item.Platform, 9),
 			truncate(item.StartedAt, 11),
 			truncate(item.Duration, 8),
 			truncate(item.FailedTask, 20),
-		)
+		)) + "\n"
 	}
 
-	result += "\n"
+	result += withHorizontalPadding("") + "\n"
 	if m.err != "" {
-		result += m.err + "\n"
+		result += withHorizontalPadding(m.err) + "\n"
 	} else {
-		result += m.status + "\n"
+		result += withHorizontalPadding(m.status) + "\n"
 	}
+	result += strings.Repeat("\n", paddingBottom)
 
 	return result
+}
+
+func withHorizontalPadding(content string) string {
+	return fmt.Sprintf("%s%s%s", strings.Repeat(" ", paddingLeft), content, strings.Repeat(" ", paddingRight))
 }
 
 func truncate(input string, max int) string {
