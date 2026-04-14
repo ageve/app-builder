@@ -4,14 +4,17 @@ import {
   accessSync,
   constants,
   existsSync,
+  mkdtempSync,
   readdirSync,
   rmSync,
   statSync,
+  writeFileSync,
 } from "node:fs";
 import { colorize } from "json-colorizer";
-import { resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { cwd } from "node:process";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import picocolors from "picocolors";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
@@ -62,6 +65,7 @@ type CliArgs = {
   log?: boolean;
   limit?: number;
   filter?: string[] | string;
+  pick?: boolean;
   task?: string;
   app?: string;
   env?: string;
@@ -86,7 +90,11 @@ async function main() {
   const command = typeof argv._[0] === "string" ? argv._[0] : "";
 
   if (command === "history") {
-    await listBuilds(argv.limit, parseHistoryFilters(argv.filter));
+    await listBuilds(
+      argv.limit,
+      parseHistoryFilters(argv.filter),
+      Boolean(argv.pick),
+    );
     return;
   }
 
@@ -148,6 +156,7 @@ async function main() {
 async function listBuilds(
   limit = 10,
   filters: Record<string, string> = {},
+  usePicker = false,
 ) {
   const db = await createReadonlyConnect();
   try {
@@ -163,6 +172,14 @@ async function listBuilds(
     if (builds.length === 0) {
       console.log("还没有构建记录。");
       return;
+    }
+
+    if (usePicker) {
+      const pickerOk = openHistoryPicker(builds);
+      if (pickerOk) {
+        return;
+      }
+      console.log("历史选择器启动失败，已回退到普通列表。");
     }
 
     renderTable({
@@ -1226,6 +1243,9 @@ function createCli() {
         type: "number",
         description: "限制显示条数，默认 10",
         default: 10,
+      }).option("pick", {
+        type: "boolean",
+        description: "打开可点击复制 BuildId 的界面",
       }).option("filter", {
         type: "array",
         string: true,
@@ -1285,6 +1305,7 @@ function createCli() {
         "  $0 info petdwVMJkImB --task uploadQiniu",
         "  $0 log petdwVMJkImB",
         "  $0 history --limit 10",
+        "  $0 history --pick",
         "  $0 history --filter platform=ios,env=alpha",
         "  $0 clear --log",
         "  $0 clear --all --log",
@@ -1768,6 +1789,38 @@ async function resolveBuildSummary(
 function toResumeId(value: unknown) {
   const text = typeof value === "string" ? value : "";
   return text || "-";
+}
+
+function openHistoryPicker(builds: BuildSummary[]) {
+  const pickerDir = resolve(cwd(), "./tools/history-picker");
+  if (!existsSync(pickerDir)) {
+    return false;
+  }
+
+  const tempDir = mkdtempSync(join(tmpdir(), "app-builder-history-"));
+  const payloadPath = resolve(tempDir, "history.json");
+
+  try {
+    const payload = builds.map((item) => ({
+      buildId: item.buildId ?? "",
+      status: item.status ?? "-",
+      pipeId: item.pipeId ?? "-",
+      startedAt: formatStartedAt(item.startedAt),
+      duration: formatDuration(item.durationMs),
+      failedTask: item.failedTaskName ?? "-",
+    }));
+
+    writeFileSync(payloadPath, JSON.stringify(payload), "utf8");
+
+    const result = spawnSync("go", ["run", ".", "--data", payloadPath], {
+      cwd: pickerDir,
+      stdio: "inherit",
+    });
+
+    return !result.error && result.status === 0;
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
 }
 
 function requireCliString(value: unknown, optionName: string) {
