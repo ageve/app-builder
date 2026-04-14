@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -16,6 +17,10 @@ type row struct {
 	BuildID    string `json:"buildId"`
 	Status     string `json:"status"`
 	PipeID     string `json:"pipeId"`
+	App        string `json:"app"`
+	Env        string `json:"env"`
+	Branch     string `json:"branch"`
+	Platform   string `json:"platform"`
 	StartedAt  string `json:"startedAt"`
 	Duration   string `json:"duration"`
 	FailedTask string `json:"failedTask"`
@@ -105,16 +110,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) View() string {
 	result := "History Picker\n"
 	result += "\n"
-	result += "[copy] BuildId         Status       PipeId                   StartedAt     Duration   FailedTask\n"
-	result += "--------------------------------------------------------------------------------------------------\n"
+	header := "BuildId         Status       PipeId                   App      Env      Branch     Platform  StartedAt   Duration FailedTask"
+	result += header + "\n"
+	result += strings.Repeat("-", len(header)) + "\n"
 
 	for _, item := range m.rows {
-		result += fmt.Sprintf("[copy] %-15s %-12s %-24s %-13s %-10s %s\n",
+		result += fmt.Sprintf("%-15s %-12s %-24s %-8s %-8s %-10s %-9s %-11s %-8s %s\n",
 			truncate(item.BuildID, 15),
 			truncate(item.Status, 12),
 			truncate(item.PipeID, 24),
-			truncate(item.StartedAt, 13),
-			truncate(item.Duration, 10),
+			truncate(item.App, 8),
+			truncate(item.Env, 8),
+			truncate(item.Branch, 10),
+			truncate(item.Platform, 9),
+			truncate(item.StartedAt, 11),
+			truncate(item.Duration, 8),
 			truncate(item.FailedTask, 20),
 		)
 	}
