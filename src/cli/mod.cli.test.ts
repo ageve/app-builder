@@ -64,7 +64,7 @@ describe("mod.ts help", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("--filter");
-    expect(result.stdout).toContain("--pick");
+    expect(result.stdout).not.toContain("--pick");
     expect(result.stdout).toContain("key=value,key2=value2");
   });
 

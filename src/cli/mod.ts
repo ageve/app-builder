@@ -647,7 +647,44 @@ async function showBuildTaskInfo(buildId: string, taskName?: string) {
       ["Platform", summary.platform ?? "-"],
       ["StartedAt", formatStartedAt(summary.startedAt)],
       ["FinishedAt", formatStartedAt(summary.finishedAt)],
+      ["Duration", formatDuration(summary.durationMs)],
     ]);
+
+    renderTable({
+      columns: [
+        {
+          key: "task_name",
+          title: "Task",
+          maxWidth: 24,
+          minWidth: 10,
+        },
+        {
+          key: "status",
+          title: "Status",
+          maxWidth: 12,
+          minWidth: 8,
+        },
+        {
+          key: "started_at",
+          title: "StartedAt",
+          maxWidth: 11,
+          minWidth: 11,
+          hardMinWidth: 11,
+          render: (row, width) =>
+            formatCell(formatStartedAt(row.started_at), width),
+        },
+        {
+          key: "duration_ms",
+          title: "Duration",
+          maxWidth: 8,
+          minWidth: 8,
+          hardMinWidth: 8,
+          render: (row, width) =>
+            formatCell(formatDuration(row.duration_ms), width),
+        },
+      ],
+      rows: history,
+    });
 
     if (summary.status === "failed" || summary.status === "interrupted") {
       renderKeyValueCard("失败信息", [
@@ -667,6 +704,7 @@ async function showBuildTaskInfo(buildId: string, taskName?: string) {
           : "Build Context",
         formatTaskDetails([
           ["task", formatPlainBlock(taskRow?.task_name)],
+          ["duration", formatPlainBlock(formatDuration(taskRow?.duration_ms))],
           ["taskInput", formatJsonBlock(taskRow?.task_input)],
           ["logFile", formatPlainBlock(taskRow?.log_file)],
           ["errorStack", formatPlainBlock(taskRow?.error_stack)],
@@ -681,6 +719,7 @@ async function showBuildTaskInfo(buildId: string, taskName?: string) {
         : "Build Context",
       formatTaskDetails([
         ["task", formatPlainBlock(taskRow?.task_name)],
+        ["duration", formatPlainBlock(formatDuration(taskRow?.duration_ms))],
         ["taskInput", formatJsonBlock(taskRow?.task_input)],
         ["logFile", formatPlainBlock(taskRow?.log_file)],
         ...(taskName
@@ -1245,7 +1284,7 @@ function createCli() {
         default: 10,
       }).option("pick", {
         type: "boolean",
-        description: "打开可点击复制 BuildId 的界面",
+        hidden: true,
       }).option("filter", {
         type: "array",
         string: true,
@@ -1305,7 +1344,6 @@ function createCli() {
         "  $0 info petdwVMJkImB --task uploadQiniu",
         "  $0 log petdwVMJkImB",
         "  $0 history --limit 10",
-        "  $0 history --pick",
         "  $0 history --filter platform=ios,env=alpha",
         "  $0 clear --log",
         "  $0 clear --all --log",
