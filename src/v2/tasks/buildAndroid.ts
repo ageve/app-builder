@@ -17,6 +17,9 @@ async function buildAndroid(context: any, options?: { clean?: boolean }) {
     await $`chmod +x gradlew`;
     if (options?.clean) {
       await $`./gradlew clean -q -Dorg.gradle.logging.level=quiet`;
+    } else {
+      // Ensure Expo re-bundles JS when .env changes even if Gradle skips other tasks.
+      await $`./gradlew :app:createBundleReleaseJsAndAssets --rerun-tasks -q -Dorg.gradle.logging.level=quiet`;
     }
 
     await $`./gradlew assembleRelease -q -Dorg.gradle.logging.level=quiet`;
