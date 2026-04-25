@@ -1480,9 +1480,9 @@ function renderTable({
     ),
   );
 
-  const border = `┏${widths.map((width) => "━".repeat(width + 2)).join("┳")}┓`;
-  const divider = `┣${widths.map((width) => "━".repeat(width + 2)).join("╋")}┫`;
-  const footer = `┗${widths.map((width) => "━".repeat(width + 2)).join("┻")}┛`;
+  const border = `┌${widths.map((width) => "─".repeat(width + 2)).join("┬")}┐`;
+  const divider = `├${widths.map((width) => "─".repeat(width + 2)).join("┼")}┤`;
+  const footer = `└${widths.map((width) => "─".repeat(width + 2)).join("┴")}┘`;
 
   console.log(border);
   renderWrappedRow(
@@ -1491,7 +1491,7 @@ function renderTable({
   );
   console.log(divider);
   normalizedRows.forEach((row, index) => {
-    renderWrappedRow(row, widths, { bottomPadding: true });
+    renderWrappedRow(row, widths);
     if (index < normalizedRows.length - 1) {
       console.log(divider);
     }
@@ -1502,7 +1502,6 @@ function renderTable({
 function renderWrappedRow(
   values: string[],
   widths: number[],
-  options?: { bottomPadding?: boolean },
 ) {
   const rowLines = values.map((value, index) =>
     toWrappedLines(value, widths[index]),
@@ -1517,22 +1516,11 @@ function renderWrappedRow(
       ),
     );
   }
-
-  if (options?.bottomPadding) {
-    console.log(renderEmptyRow(widths));
-  }
-}
-
-function renderEmptyRow(widths: number[]) {
-  return renderTableRow(
-    widths.map(() => ""),
-    widths,
-  );
 }
 
 function renderTableRow(values: string[], widths: number[]) {
   const cells = values.map((value, index) => padCell(value, widths[index]));
-  return `┃ ${cells.join(" ┃ ")} ┃`;
+  return `│ ${cells.join(" │ ")} │`;
 }
 
 function renderKeyValueCard(title: string, rows: Array<[string, string]>) {
