@@ -1480,9 +1480,9 @@ function renderTable({
     ),
   );
 
-  const border = `┌${widths.map((width) => "─".repeat(width + 2)).join("┬")}┐`;
-  const divider = `├${widths.map((width) => "─".repeat(width + 2)).join("┼")}┤`;
-  const footer = `└${widths.map((width) => "─".repeat(width + 2)).join("┴")}┘`;
+  const border = `┏${widths.map((width) => "━".repeat(width + 2)).join("┳")}┓`;
+  const divider = `┣${widths.map((width) => "━".repeat(width + 2)).join("╋")}┫`;
+  const footer = `┗${widths.map((width) => "━".repeat(width + 2)).join("┻")}┛`;
 
   console.log(border);
   renderWrappedRow(
@@ -1491,7 +1491,7 @@ function renderTable({
   );
   console.log(divider);
   normalizedRows.forEach((row, index) => {
-    renderWrappedRow(row, widths, { padding: true });
+    renderWrappedRow(row, widths, { bottomPadding: true });
     if (index < normalizedRows.length - 1) {
       console.log(divider);
     }
@@ -1502,36 +1502,37 @@ function renderTable({
 function renderWrappedRow(
   values: string[],
   widths: number[],
-  options?: { padding?: boolean },
+  options?: { bottomPadding?: boolean },
 ) {
   const rowLines = values.map((value, index) =>
     toWrappedLines(value, widths[index]),
   );
   const rowHeight = Math.max(...rowLines.map((lines) => lines.length));
 
-  if (options?.padding) {
-    console.log(renderEmptyRow(widths));
-  }
-
   for (let lineIndex = 0; lineIndex < rowHeight; lineIndex += 1) {
     console.log(
-      renderRow(
+      renderTableRow(
         rowLines.map((lines) => lines[lineIndex] ?? ""),
         widths,
       ),
     );
   }
 
-  if (options?.padding) {
+  if (options?.bottomPadding) {
     console.log(renderEmptyRow(widths));
   }
 }
 
 function renderEmptyRow(widths: number[]) {
-  return renderRow(
+  return renderTableRow(
     widths.map(() => ""),
     widths,
   );
+}
+
+function renderTableRow(values: string[], widths: number[]) {
+  const cells = values.map((value, index) => padCell(value, widths[index]));
+  return `┃ ${cells.join(" ┃ ")} ┃`;
 }
 
 function renderKeyValueCard(title: string, rows: Array<[string, string]>) {
