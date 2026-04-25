@@ -134,7 +134,7 @@ export function createHugoAivPipelines({
   config,
   pipelines,
   args,
-  workspace,
+  workspace: overridWorkspace,
   clean = true,
 }: {
   config: Config;
@@ -143,6 +143,7 @@ export function createHugoAivPipelines({
   workspace?: string;
   clean?: boolean;
 }) {
+  const workspace = overridWorkspace ?? config.workspace;
   return pipelines.map((item) => {
     const [packageAlias, platform, env, branch] = item.split("-");
     const envPath = resolve(
@@ -164,7 +165,8 @@ export function createHugoAivPipelines({
 
     const autoVersionCode = env === "production" || args.autoVersionCode;
     const legacyVersioning = args.legacyVersioning || false;
-    const androidBuildClear = args.taskOptions?.android?.buildAndroid?.clear ?? true;
+    const androidBuildClear =
+      args.taskOptions?.android?.buildAndroid?.clear ?? true;
     const iosBuildPodInstall = args.taskOptions?.ios?.buildIOS?.podInstall;
     const iosBuildProvisioningAuto =
       args.taskOptions?.ios?.buildIOS?.provisioningAuto;

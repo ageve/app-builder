@@ -8,6 +8,7 @@ export const configSchema = z.object({
       buildType: z.literal("apk"),
     })
     .optional(),
+  workspace: z.string().optional(),
 
   notifyBusinessWechat: z
     .object({
