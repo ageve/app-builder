@@ -1490,17 +1490,28 @@ function renderTable({
     widths,
   );
   console.log(divider);
-  normalizedRows.forEach((row) => {
-    renderWrappedRow(row, widths);
+  normalizedRows.forEach((row, index) => {
+    renderWrappedRow(row, widths, { padding: true });
+    if (index < normalizedRows.length - 1) {
+      console.log(divider);
+    }
   });
   console.log(footer);
 }
 
-function renderWrappedRow(values: string[], widths: number[]) {
+function renderWrappedRow(
+  values: string[],
+  widths: number[],
+  options?: { padding?: boolean },
+) {
   const rowLines = values.map((value, index) =>
     toWrappedLines(value, widths[index]),
   );
   const rowHeight = Math.max(...rowLines.map((lines) => lines.length));
+
+  if (options?.padding) {
+    console.log(renderEmptyRow(widths));
+  }
 
   for (let lineIndex = 0; lineIndex < rowHeight; lineIndex += 1) {
     console.log(
@@ -1510,6 +1521,17 @@ function renderWrappedRow(values: string[], widths: number[]) {
       ),
     );
   }
+
+  if (options?.padding) {
+    console.log(renderEmptyRow(widths));
+  }
+}
+
+function renderEmptyRow(widths: number[]) {
+  return renderRow(
+    widths.map(() => ""),
+    widths,
+  );
 }
 
 function renderKeyValueCard(title: string, rows: Array<[string, string]>) {
