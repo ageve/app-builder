@@ -1485,17 +1485,31 @@ function renderTable({
   const footer = `└${widths.map((width) => "─".repeat(width + 2)).join("┴")}┘`;
 
   console.log(border);
-  console.log(
-    renderRow(
-      columns.map((column) => column.title),
-      widths,
-    ),
+  renderWrappedRow(
+    columns.map((column) => column.title),
+    widths,
   );
   console.log(divider);
   normalizedRows.forEach((row) => {
-    console.log(renderRow(row, widths));
+    renderWrappedRow(row, widths);
   });
   console.log(footer);
+}
+
+function renderWrappedRow(values: string[], widths: number[]) {
+  const rowLines = values.map((value, index) =>
+    toWrappedLines(value, widths[index]),
+  );
+  const rowHeight = Math.max(...rowLines.map((lines) => lines.length));
+
+  for (let lineIndex = 0; lineIndex < rowHeight; lineIndex += 1) {
+    console.log(
+      renderRow(
+        rowLines.map((lines) => lines[lineIndex] ?? ""),
+        widths,
+      ),
+    );
+  }
 }
 
 function renderKeyValueCard(title: string, rows: Array<[string, string]>) {
@@ -1556,14 +1570,10 @@ function padCell(value: string, width: number) {
   return `${value}${" ".repeat(Math.max(diff, 0))}`;
 }
 
-function formatCell(value: unknown, maxWidth?: number) {
+function formatCell(value: unknown, _maxWidth?: number) {
   const text =
     value === undefined || value === null || value === "" ? "-" : String(value);
-  if (!maxWidth || stringWidth(text) <= maxWidth) {
-    return text;
-  }
-  const truncated = truncateText(text, Math.max(maxWidth - 1, 1));
-  return `${truncated}…`;
+  return text;
 }
 
 function fitTableWidths(
@@ -1616,17 +1626,6 @@ function getTableWidth(widths: number[]) {
   return (
     widths.reduce((total, width) => total + width, 0) + widths.length * 3 + 1
   );
-}
-
-function truncateText(text: string, maxWidth: number) {
-  let current = "";
-  for (const char of text) {
-    if (stringWidth(current + char) > maxWidth) {
-      break;
-    }
-    current += char;
-  }
-  return current;
 }
 
 function stringWidth(text: string) {
